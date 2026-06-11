@@ -40,6 +40,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { parsePanPdf, type PanData } from "@/lib/pan-parser";
+import { ThemeToggle } from "@/components/theme-toggle";
 import {
   loadBudgetFromUrl,
   loadCnpjFromUrl,
@@ -474,6 +475,7 @@ export default function Page() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <button className="relative p-2 rounded-lg hover:bg-muted transition-colors">
               <Bell className="h-5 w-5 text-muted-foreground" />
               {analyzed.filter((a) => a.status === "warn").length > 0 && (

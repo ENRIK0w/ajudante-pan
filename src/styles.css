@@ -117,6 +117,12 @@
 
 .dark {
   --background: oklch(0.129 0.042 264.695);
+  --canvas: oklch(0.15 0.035 264);
+  --surface: oklch(0.18 0.038 264);
+  --status-ok: oklch(0.65 0.15 150);
+  --status-warn: oklch(0.78 0.16 85);
+  --gradient-brand: linear-gradient(135deg, oklch(0.55 0.22 265), oklch(0.65 0.18 195));
+  --shadow-glow: 0 8px 24px -8px oklch(0.55 0.22 265 / 0.5);
   --foreground: oklch(0.984 0.003 247.858);
   --card: oklch(0.208 0.042 265.755);
   --card-foreground: oklch(0.984 0.003 247.858);
