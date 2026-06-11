@@ -22,8 +22,6 @@ import {
   FolderOpen,
   Settings,
   HelpCircle,
-  Bell,
-  Search,
   Menu,
   BarChart3,
   Shield,
@@ -465,31 +463,9 @@ export default function Page() {
             <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-lg hover:bg-muted transition-colors lg:hidden">
               <Menu className="h-5 w-5" />
             </button>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Buscar PANs..."
-                className="h-9 w-64 rounded-lg border border-border bg-muted/30 pl-9 pr-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all"
-              />
-            </div>
           </div>
           <div className="flex items-center gap-3">
             <ThemeToggle />
-            <button className="relative p-2 rounded-lg hover:bg-muted transition-colors">
-              <Bell className="h-5 w-5 text-muted-foreground" />
-              {analyzed.filter((a) => a.status === "warn").length > 0 && (
-                <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-status-warn" />
-              )}
-            </button>
-            <div className="h-8 w-px bg-border" />
-            <div className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-full bg-gradient-brand grid place-items-center text-xs font-bold text-white">U</div>
-              <div className="hidden sm:block">
-                <div className="text-sm font-medium">Usuário</div>
-                <div className="text-xs text-muted-foreground">Analista</div>
-              </div>
-            </div>
           </div>
         </header>
 
