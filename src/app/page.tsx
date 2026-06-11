@@ -24,7 +24,6 @@ import {
   HelpCircle,
   Menu,
   BarChart3,
-  Shield,
   Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -410,7 +409,15 @@ export default function Page() {
         <div className="p-4 border-b border-border/60">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-gradient-brand grid place-items-center shadow-glow shrink-0">
-              <Shield className="h-5 w-5 text-primary-foreground" />
+              <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6 text-primary-foreground" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="8" width="18" height="12" rx="3" />
+                <circle cx="9" cy="13" r="1.5" fill="currentColor" stroke="none" />
+                <circle cx="15" cy="13" r="1.5" fill="currentColor" stroke="none" />
+                <path d="M9 17h6" />
+                <path d="M12 8V5" />
+                <circle cx="12" cy="4" r="1" fill="currentColor" stroke="none" />
+                <path d="M3 13H1M23 13h-2" />
+              </svg>
             </div>
             {sidebarOpen && (
               <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="overflow-hidden">
