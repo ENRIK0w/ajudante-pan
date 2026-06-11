@@ -422,7 +422,7 @@ export default function Page() {
             {sidebarOpen && (
               <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="overflow-hidden">
                 <div className="font-bold text-lg tracking-tight">Ajudante das PAN</div>
-                <div className="text-[10px] text-muted-foreground uppercase tracking-wider">beta</div>
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wider">v 0.0.1</div>
               </motion.div>
             )}
           </div>
@@ -565,7 +565,7 @@ export default function Page() {
               </div>
               <h3 className="text-lg font-semibold">Nenhuma PAN analisada</h3>
               <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
-                Faça upload de arquivos PDF de PANs para começar a análise contra o orçamento aprovado.
+                Faça upload de arquivos dos PDFs aqui.
               </p>
               <Button variant="outline" className="gap-2 mt-4" onClick={() => document.getElementById("upload-pan")?.click()}>
                 <Upload className="h-4 w-4" />
