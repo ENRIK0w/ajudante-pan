@@ -280,45 +280,45 @@ export default function Page() {
     try {
       const selectedPans = analyzed.filter((a) => selected.has(a.pan.fileName));
 
-      // Header fill styles — no borders (matches model)
+      // Header fill styles — no borders (matches model).
+      // Each call to hBase() produces a fresh object so xlsx-js-style's _addFill
+      // cannot mutate a shared reference and corrupt sibling cells.
       const hBase = (rgb: string) => ({
         fill: { patternType: "solid", fgColor: { rgb } },
         font: { color: { rgb: "FFFFFF" }, bold: true, sz: 11, name: "Calibri" },
         alignment: { horizontal: "center", vertical: "center", wrapText: true },
       });
-      const hDarkBlue  = hBase("0E2841");
-      const hLightBlue = hBase("00B0F0");
-      const hGreen     = hBase("00B050");
-      const hOrange    = hBase("FFC000");
 
       // Data styles — no borders, no fill
       const dCurrency = { numFmt: "#,##0" };
       const dPercent  = { numFmt: "0%" };
 
-      // 22 header columns A–V (matches model structure exactly)
+      // 22 header columns A–V (matches model structure exactly).
+      // hBase() is called per-cell so each gets its own object — prevents _addFill mutation
+      // of a shared reference from corrupting sibling cells.
       const headers: { v: string; s: object }[] = [
-        { v: "Categoria",                          s: hDarkBlue  }, // A  0
-        { v: "PAN",                                s: hDarkBlue  }, // B  1
-        { v: "Nome",                               s: hDarkBlue  }, // C  2
-        { v: "Total PAN p/ 2026",                  s: hDarkBlue  }, // D  3
-        { v: "Total PAN p/\r\n2027-2030",          s: hDarkBlue  }, // E  4
-        { v: "Total geral PAN",                    s: hDarkBlue  }, // F  5
-        { v: "",                                   s: {}         }, // G  6  separator
-        { v: "BAR/BRR",                            s: hDarkBlue  }, // H  7
-        { v: "Linha Orçamento",                    s: hDarkBlue  }, // I  8
-        { v: "Orç p/2026",                         s: hLightBlue }, // J  9
-        { v: "Orç p/2027-2030",                    s: hLightBlue }, // K 10
-        { v: "TOTAL Geral orç.\r\n2026-2030",      s: hLightBlue }, // L 11
-        { v: "",                                   s: {}         }, // M 12  separator
-        { v: "∆ PAN vs Orçado\r\n2026",            s: hGreen     }, // N 13
-        { v: "∆ PAN vs Orçado\r\n2027-2030",       s: hGreen     }, // O 14
-        { v: "TOTAL Geral\r\n2026-2030",           s: hGreen     }, // P 15
-        { v: "",                                   s: {}         }, // Q 16  separator
-        { v: "% Variação PAN\r\n2026",             s: hOrange    }, // R 17
-        { v: "% Variação PAN\r\n2027-2030",        s: hOrange    }, // S 18
-        { v: "% Variação Geral PAN",               s: hOrange    }, // T 19
-        { v: "Status",                             s: hDarkBlue  }, // U 20  fill-only in data rows
-        { v: "",                                   s: hDarkBlue  }, // V 21  observation text in data rows
+        { v: "Categoria",                          s: hBase("0E2841") }, // A  0
+        { v: "PAN",                                s: hBase("0E2841") }, // B  1
+        { v: "Nome",                               s: hBase("0E2841") }, // C  2
+        { v: "Total PAN p/ 2026",                  s: hBase("0E2841") }, // D  3
+        { v: "Total PAN p/\r\n2027-2030",          s: hBase("0E2841") }, // E  4
+        { v: "Total geral PAN",                    s: hBase("0E2841") }, // F  5
+        { v: "",                                   s: {}              }, // G  6  separator
+        { v: "BAR/BRR",                            s: hBase("0E2841") }, // H  7
+        { v: "Linha Orçamento",                    s: hBase("0E2841") }, // I  8
+        { v: "Orç p/2026",                         s: hBase("00B0F0") }, // J  9
+        { v: "Orç p/2027-2030",                    s: hBase("00B0F0") }, // K 10
+        { v: "TOTAL Geral orç.\r\n2026-2030",      s: hBase("00B0F0") }, // L 11
+        { v: "",                                   s: {}              }, // M 12  separator
+        { v: "∆ PAN vs Orçado\r\n2026",            s: hBase("00B050") }, // N 13
+        { v: "∆ PAN vs Orçado\r\n2027-2030",       s: hBase("00B050") }, // O 14
+        { v: "TOTAL Geral\r\n2026-2030",           s: hBase("00B050") }, // P 15
+        { v: "",                                   s: {}              }, // Q 16  separator
+        { v: "% Variação PAN\r\n2026",             s: hBase("FFC000") }, // R 17
+        { v: "% Variação PAN\r\n2027-2030",        s: hBase("FFC000") }, // S 18
+        { v: "% Variação Geral PAN",               s: hBase("FFC000") }, // T 19
+        { v: "Status",                             s: hBase("0E2841") }, // U 20  fill-only in data rows
+        { v: "",                                   s: hBase("0E2841") }, // V 21  observation text in data rows
       ];
 
       const dataRows: (string | number | null)[][] = [];
@@ -351,7 +351,7 @@ export default function Page() {
         const pct2026       = orc2026       > 0 ? delta2026      / orc2026       : 0;
         const pct2027_2030  = orc2027_2030  > 0 ? delta2027_2030 / orc2027_2030  : 0;
         const pctTotal      = orcTotal      > 0 ? deltaTotal     / orcTotal      : 0;
-        const obsText = a.status === "ok" ? "Ok" : "";
+        const obsText = a.status === "ok" ? "Ok" : a.status === "warn" ? "Atenção" : "Revisar";
 
         dataRows.push([
           categoria, panNumber, nome,
@@ -389,7 +389,7 @@ export default function Page() {
             const fillRgb = selectedPans[rowIdx].status === "ok"   ? "92D050"
                           : selectedPans[rowIdx].status === "warn"  ? "FFFF00"
                           : "D3D3D3";
-            ws[ref] = { v: "", t: "z", s: { fill: { patternType: "solid", fgColor: { rgb: fillRgb } } } };
+            ws[ref] = { v: "", t: "s", s: { fill: { patternType: "solid", fgColor: { rgb: fillRgb } } } };
           } else if (col === 21) {
             // Observation text (V column)
             ws[ref] = { v: val ?? "", t: "s", s: {} };
@@ -458,7 +458,7 @@ export default function Page() {
         <div className="p-4 border-b border-border/60">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-gradient-brand grid place-items-center shadow-glow shrink-0">
-              <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6 text-primary-foreground" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6 text-white" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="8" width="18" height="12" rx="3" />
                 <circle cx="9" cy="13" r="1.5" fill="currentColor" stroke="none" />
                 <circle cx="15" cy="13" r="1.5" fill="currentColor" stroke="none" />
