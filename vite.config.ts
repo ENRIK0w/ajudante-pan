@@ -8,7 +8,7 @@ export default defineConfig({
   plugins: [
     tanstackStart({
       server: {
-        entry: "server",
+        entry: "src/server",
         preset: "vercel",
       },
     }),
