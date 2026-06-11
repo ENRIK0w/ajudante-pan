@@ -279,46 +279,55 @@ export default function Page() {
     setExporting(true);
     try {
       const selectedPans = analyzed.filter((a) => selected.has(a.pan.fileName));
-      const headerStyleDarkBlue = {
-        fill: { fgColor: { rgb: "0E2841" } },
-        font: { color: { rgb: "FFFFFF" }, bold: true, sz: 11 },
+
+      // Header fill styles — no borders (matches model)
+      const hBase = (rgb: string) => ({
+        fill: { patternType: "solid", fgColor: { rgb } },
+        font: { color: { rgb: "FFFFFF" }, bold: true, sz: 11, name: "Calibri" },
         alignment: { horizontal: "center", vertical: "center", wrapText: true },
-        border: {
-          top: { style: "thin", color: { rgb: "000000" } },
-          bottom: { style: "thin", color: { rgb: "000000" } },
-          left: { style: "thin", color: { rgb: "000000" } },
-          right: { style: "thin", color: { rgb: "000000" } },
-        },
-      };
-      const headerStyleLightBlue = { ...headerStyleDarkBlue, fill: { fgColor: { rgb: "00B0F0" } } };
-      const headerStyleGreen = { ...headerStyleDarkBlue, fill: { fgColor: { rgb: "00B050" } } };
-      const headerStyleOrange = { ...headerStyleDarkBlue, fill: { fgColor: { rgb: "FFC000" } } };
-      const dataStyleBase = {
-        font: { sz: 11 },
-        alignment: { vertical: "center" },
-        border: {
-          top: { style: "thin", color: { rgb: "D0D0D0" } },
-          bottom: { style: "thin", color: { rgb: "D0D0D0" } },
-          left: { style: "thin", color: { rgb: "D0D0D0" } },
-          right: { style: "thin", color: { rgb: "D0D0D0" } },
-        },
-      };
-      const dataStyleCurrency = { ...dataStyleBase, numFmt: "#,##0", alignment: { ...dataStyleBase.alignment, horizontal: "right" } };
-      const dataStylePercent = { ...dataStyleBase, numFmt: "0%", alignment: { ...dataStyleBase.alignment, horizontal: "right" } };
-      const dataStyleStatus = { ...dataStyleBase, fill: { fgColor: { rgb: "FFFF00" } }, font: { sz: 11, bold: true } };
-      const header = [
-        "Categoria", "PAN", "Nome", "Total PAN p/ 2026", "Total PAN p/ 2027-2030", "Total geral PAN", "",
-        "BAR/BRR", "Linha Orçamento", "Orç p/2026", "Orç p/2027-2030", "TOTAL Geral orç. 2026-2030", "",
-        "∆ PAN vs Orçado 2026", "∆ PAN vs Orçado 2027-2030", "TOTAL Geral ∆", "",
-        "% Variação 2026", "% Variação 2027-2030", "% Variação Geral", "Status",
+      });
+      const hDarkBlue  = hBase("0E2841");
+      const hLightBlue = hBase("00B0F0");
+      const hGreen     = hBase("00B050");
+      const hOrange    = hBase("FFC000");
+
+      // Data styles — no borders, no fill
+      const dCurrency = { numFmt: "#,##0" };
+      const dPercent  = { numFmt: "0%" };
+
+      // 22 header columns A–V (matches model structure exactly)
+      const headers: { v: string; s: object }[] = [
+        { v: "Categoria",                          s: hDarkBlue  }, // A  0
+        { v: "PAN",                                s: hDarkBlue  }, // B  1
+        { v: "Nome",                               s: hDarkBlue  }, // C  2
+        { v: "Total PAN p/ 2026",                  s: hDarkBlue  }, // D  3
+        { v: "Total PAN p/\r\n2027-2030",          s: hDarkBlue  }, // E  4
+        { v: "Total geral PAN",                    s: hDarkBlue  }, // F  5
+        { v: "",                                   s: {}         }, // G  6  separator
+        { v: "BAR/BRR",                            s: hDarkBlue  }, // H  7
+        { v: "Linha Orçamento",                    s: hDarkBlue  }, // I  8
+        { v: "Orç p/2026",                         s: hLightBlue }, // J  9
+        { v: "Orç p/2027-2030",                    s: hLightBlue }, // K 10
+        { v: "TOTAL Geral orç.\r\n2026-2030",      s: hLightBlue }, // L 11
+        { v: "",                                   s: {}         }, // M 12  separator
+        { v: "∆ PAN vs Orçado\r\n2026",            s: hGreen     }, // N 13
+        { v: "∆ PAN vs Orçado\r\n2027-2030",       s: hGreen     }, // O 14
+        { v: "TOTAL Geral\r\n2026-2030",           s: hGreen     }, // P 15
+        { v: "",                                   s: {}         }, // Q 16  separator
+        { v: "% Variação PAN\r\n2026",             s: hOrange    }, // R 17
+        { v: "% Variação PAN\r\n2027-2030",        s: hOrange    }, // S 18
+        { v: "% Variação Geral PAN",               s: hOrange    }, // T 19
+        { v: "Status",                             s: hDarkBlue  }, // U 20  fill-only in data rows
+        { v: "",                                   s: hDarkBlue  }, // V 21  observation text in data rows
       ];
+
       const dataRows: (string | number | null)[][] = [];
       for (const a of selectedPans) {
         const categoria = a.pan.isTurnKey ? "TK" : (a.rows[0]?.empresaCode?.startsWith("D") ? "BRR" : "Outros");
         const panNumber = a.pan.panNumber ?? "—";
         const nome = a.pan.titulo ?? a.pan.fileName;
         const pan2026 = a.pan.fluxoCaixa.find((f) => f.ano === 2026)?.valor ?? 0;
-        const pan2027_2030 = a.pan.fluxoCaixa.filter((f) => f.ano >= 2027 && f.ano <= 2030).reduce((sum, f) => sum + f.valor, 0);
+        const pan2027_2030 = a.pan.fluxoCaixa.filter((f) => f.ano >= 2027 && f.ano <= 2030).reduce((s, f) => s + f.valor, 0);
         const panTotal = pan2026 + pan2027_2030;
         const capex = (a.pan.percentualCapex ?? 100) / 100;
         const panCapex2026 = pan2026 * capex;
@@ -326,74 +335,114 @@ export default function Page() {
         const panCapexTotal = panTotal * capex;
         const barBrr = a.pan.isTurnKey ? "PESE" : (a.rows[0]?.empresaCode ?? "—");
         const linhaOrc = a.pan.isTurnKey && a.pese?.peseCodeResolved ? a.pese.peseCodeResolved : (a.tpResolved ?? "—");
-        let orc2026 = 0;
-        let orc2027_2030 = 0;
+        let orc2026 = 0, orc2027_2030 = 0;
         if (a.pan.isTurnKey && a.pese) {
           orc2026 = a.pese.peseByYear.find((y) => y.year === "2026")?.available ?? 0;
-          orc2027_2030 = a.pese.peseByYear.filter((y) => parseInt(y.year) >= 2027 && parseInt(y.year) <= 2030).reduce((sum, y) => sum + y.available, 0);
+          orc2027_2030 = a.pese.peseByYear.filter((y) => +y.year >= 2027 && +y.year <= 2030).reduce((s, y) => s + y.available, 0);
         } else {
           orc2026 = a.yearTotals.find((y) => y.year === "2026")?.available ?? 0;
-          orc2027_2030 = a.yearTotals.filter((y) => parseInt(y.year) >= 2027 && parseInt(y.year) <= 2030).reduce((sum, y) => sum + y.available, 0);
+          orc2027_2030 = a.yearTotals.filter((y) => +y.year >= 2027 && +y.year <= 2030).reduce((s, y) => s + y.available, 0);
         }
         const orcTotal = orc2026 + orc2027_2030;
-        const delta2026 = orc2026 - panCapex2026;
-        const delta2027_2030 = orc2027_2030 - panCapex2027_2030;
-        const deltaTotal = orcTotal - panCapexTotal;
-        const pct2026 = orc2026 > 0 ? delta2026 / orc2026 : 0;
-        const pct2027_2030 = orc2027_2030 > 0 ? delta2027_2030 / orc2027_2030 : 0;
-        const pctTotal = orcTotal > 0 ? deltaTotal / orcTotal : 0;
-        dataRows.push([categoria, panNumber, nome, panCapex2026, panCapex2027_2030, panCapexTotal, null, barBrr, linhaOrc, orc2026, orc2027_2030, orcTotal, null, delta2026, delta2027_2030, deltaTotal, null, pct2026, pct2027_2030, pctTotal, null]);
+        // Delta = requested − available (negative = within budget, positive = over budget — matches model sign)
+        const delta2026       = panCapex2026       - orc2026;
+        const delta2027_2030  = panCapex2027_2030  - orc2027_2030;
+        const deltaTotal      = panCapexTotal      - orcTotal;
+        const pct2026       = orc2026       > 0 ? delta2026      / orc2026       : 0;
+        const pct2027_2030  = orc2027_2030  > 0 ? delta2027_2030 / orc2027_2030  : 0;
+        const pctTotal      = orcTotal      > 0 ? deltaTotal     / orcTotal      : 0;
+        const obsText = a.status === "ok" ? "Ok" : "";
+
+        dataRows.push([
+          categoria, panNumber, nome,
+          panCapex2026, panCapex2027_2030, panCapexTotal, null,       // A-G
+          barBrr, linhaOrc, orc2026, orc2027_2030, orcTotal, null,   // H-M
+          delta2026, delta2027_2030, deltaTotal, null,                 // N-Q
+          pct2026, pct2027_2030, pctTotal,                             // R-T
+          null,     // U  20 — status fill cell (value unused, written below)
+          obsText,  // V  21 — observation text
+        ]);
       }
+
       const wb = XLSX.utils.book_new();
       const ws: XLSX.WorkSheet = {};
-      const headerStyles = [
-        headerStyleDarkBlue, headerStyleDarkBlue, headerStyleDarkBlue, headerStyleDarkBlue, headerStyleDarkBlue, headerStyleDarkBlue, {},
-        headerStyleDarkBlue, headerStyleDarkBlue, headerStyleLightBlue, headerStyleLightBlue, headerStyleLightBlue, {},
-        headerStyleGreen, headerStyleGreen, headerStyleGreen, {},
-        headerStyleOrange, headerStyleOrange, headerStyleOrange, headerStyleDarkBlue,
-      ];
-      header.forEach((val, col) => {
-        const cellRef = XLSX.utils.encode_cell({ r: 0, c: col });
-        ws[cellRef] = { v: val, t: "s", s: headerStyles[col] };
+
+      // Write header row
+      headers.forEach(({ v, s }, col) => {
+        const ref = XLSX.utils.encode_cell({ r: 0, c: col });
+        ws[ref] = { v, t: v === "" ? "z" : "s", s };
       });
-      const getDataStyle = (col: number) => {
-        if ([3, 4, 5, 9, 10, 11, 13, 14, 15].includes(col)) return dataStyleCurrency;
-        if ([17, 18, 19].includes(col)) return dataStylePercent;
-        if (col === 20) return dataStyleStatus;
-        if ([6, 12, 16].includes(col)) return {};
-        return dataStyleBase;
-      };
+
+      // Write data rows
+      const SEPARATORS = new Set([6, 12, 16]);
+      const CURRENCY_COLS = new Set([3, 4, 5, 9, 10, 11, 13, 14, 15]);
+      const PERCENT_COLS  = new Set([17, 18, 19]);
+
       dataRows.forEach((row, rowIdx) => {
         row.forEach((val, col) => {
-          const cellRef = XLSX.utils.encode_cell({ r: rowIdx + 1, c: col });
-          const style = getDataStyle(col);
-          if (col === 20) {
-            const a = selectedPans[rowIdx];
-            const statusMsg = a.status === "ok" ? "Aprovado" : a.status === "warn" ? "Atenção" : "Revisar";
-            ws[cellRef] = { v: statusMsg, t: "s", s: style };
-          } else if (val === null || val === "") {
-            ws[cellRef] = { v: "", t: "s", s: style };
+          const ref = XLSX.utils.encode_cell({ r: rowIdx + 1, c: col });
+
+          if (SEPARATORS.has(col)) {
+            ws[ref] = { v: "", t: "z", s: {} };
+          } else if (col === 20) {
+            // Status: colored fill, no text
+            const fillRgb = selectedPans[rowIdx].status === "ok"   ? "92D050"
+                          : selectedPans[rowIdx].status === "warn"  ? "FFFF00"
+                          : "D3D3D3";
+            ws[ref] = { v: "", t: "z", s: { fill: { patternType: "solid", fgColor: { rgb: fillRgb } } } };
+          } else if (col === 21) {
+            // Observation text (V column)
+            ws[ref] = { v: val ?? "", t: "s", s: {} };
+          } else if (CURRENCY_COLS.has(col)) {
+            ws[ref] = { v: val ?? 0, t: "n", s: dCurrency };
+          } else if (PERCENT_COLS.has(col)) {
+            ws[ref] = { v: val ?? 0, t: "n", s: dPercent };
           } else if (typeof val === "number") {
-            ws[cellRef] = { v: val, t: "n", s: style };
+            ws[ref] = { v: val, t: "n", s: {} };
           } else {
-            ws[cellRef] = { v: val, t: "s", s: style };
+            ws[ref] = { v: val ?? "", t: "s", s: {} };
           }
         });
       });
-      ws["!ref"] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: dataRows.length, c: header.length - 1 } });
+
+      ws["!ref"] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: dataRows.length, c: headers.length - 1 } });
+
+      // Column widths — exact values from model file
       ws["!cols"] = [
-        { wch: 12 }, { wch: 12 }, { wch: 70 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 2 },
-        { wch: 12 }, { wch: 35 }, { wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 2 },
-        { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 2 },
-        { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 12 },
+        { wch: 13.5  }, // A  Categoria
+        { wch: 9.21  }, // B  PAN
+        { wch: 94.79 }, // C  Nome
+        { wch: 17.79 }, // D  PAN 2026
+        { wch: 17.21 }, // E  PAN 2027-2030
+        { wch: 19.79 }, // F  PAN Total
+        { wch: 1.21  }, // G  separator
+        { wch: 13.79 }, // H  BAR/BRR
+        { wch: 34.21 }, // I  Linha Orçamento
+        { wch: 16.64 }, // J  Orç 2026
+        { wch: 18.64 }, // K  Orç 2027-2030
+        { wch: 15.79 }, // L  Orç Total
+        { wch: 1.21  }, // M  separator
+        { wch: 14.64 }, // N  ∆ 2026
+        { wch: 17.79 }, // O  ∆ 2027-2030
+        { wch: 17.79 }, // P  ∆ Total
+        { wch: 1.21  }, // Q  separator
+        { wch: 17.79 }, // R  % 2026
+        { wch: 17.79 }, // S  % 2027-2030
+        { wch: 14.64 }, // T  % Total
+        { wch: 11.21 }, // U  Status fill
+        { wch: 90.21 }, // V  Observation
       ];
-      ws["!rows"] = [{ hpx: 35 }];
-      for (let i = 0; i < dataRows.length; i++) ws["!rows"].push({ hpx: 28 });
+
+      // Row heights — exact values from model file
+      ws["!rows"] = [
+        { hpt: 29.1 },
+        ...dataRows.map(() => ({ hpt: 29.25 })),
+      ];
+
       const today = new Date();
       const sheetName = `${today.getDate().toString().padStart(2, "0")}.${(today.getMonth() + 1).toString().padStart(2, "0")}`;
       XLSX.utils.book_append_sheet(wb, ws, sheetName);
-      const fileName = `Resumo_PAN_${today.getFullYear()}_${sheetName.replace(".", "-")}.xlsx`;
-      XLSX.writeFile(wb, fileName);
+      XLSX.writeFile(wb, `Resumo_PAN_${today.getFullYear()}_${sheetName.replace(".", "-")}.xlsx`);
     } catch (e) {
       setError("Erro ao exportar: " + (e as Error).message);
     } finally {
