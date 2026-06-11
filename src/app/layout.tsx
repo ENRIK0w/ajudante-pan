@@ -3,11 +3,11 @@ import "@/styles.css";
 import { Providers } from "@/components/providers";
 
 export const metadata: Metadata = {
-  title: "PAN Budget Sentinel",
-  description: "Análise automatizada de PANs vs. orçamento aprovado",
+  title: "Ajudante PAN",
+  description: ":)",
   openGraph: {
-    title: "PAN Budget Sentinel",
-    description: "Análise automatizada de PANs vs. orçamento aprovado",
+    title: "Ajudante PAN",
+    description: ":)",
     type: "website",
   },
   twitter: {
