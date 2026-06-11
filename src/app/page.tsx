@@ -683,15 +683,18 @@ function PanCard({ a, db, peseDb, expanded, isSelected, onToggle, onSelect, onRe
                             <tr><th className="text-left px-4 py-2 font-medium">Ano</th><th className="text-right px-4 py-2 font-medium">PAN</th><th className="text-right px-4 py-2 font-medium">PESE</th><th className="text-right px-4 py-2 font-medium">Diferença</th><th className="text-center px-4 py-2 font-medium">Status</th></tr>
                           </thead>
                           <tbody>
-                            {a.pese.peseByYear.map((y) => (
-                              <tr key={y.year} className="border-t border-border/40">
-                                <td className="px-4 py-2 font-medium">{y.year}</td>
-                                <td className="px-4 py-2 text-right">{fmtBRL(y.requested)}</td>
-                                <td className="px-4 py-2 text-right">{fmtBRL(y.available)}</td>
-                                <td className={`px-4 py-2 text-right font-medium ${y.ok ? "text-status-ok" : "text-status-warn"}`}>{y.diff >= 0 ? "+" : ""}{fmtBRL(y.diff)}</td>
-                                <td className="px-4 py-2 text-center"><span className={`inline-block h-2 w-2 rounded-full ${y.ok ? "bg-status-ok" : "bg-status-warn"}`} /></td>
-                              </tr>
-                            ))}
+                            {a.pese.peseByYear.map((y) => {
+                              const noBudget = y.requested > 0 && y.available === 0;
+                              return (
+                                <tr key={y.year} className={`border-t border-border/40 ${noBudget ? "bg-status-warn/5" : ""}`}>
+                                  <td className="px-4 py-2 font-medium">{y.year}</td>
+                                  <td className="px-4 py-2 text-right">{fmtBRL(y.requested)}</td>
+                                  <td className={`px-4 py-2 text-right ${noBudget ? "text-status-warn font-medium" : ""}`}>{noBudget ? "Sem orçamento" : fmtBRL(y.available)}</td>
+                                  <td className={`px-4 py-2 text-right font-medium ${y.ok ? "text-status-ok" : "text-status-warn"}`}>{y.diff >= 0 ? "+" : ""}{fmtBRL(y.diff)}</td>
+                                  <td className="px-4 py-2 text-center"><span className={`inline-block h-2 w-2 rounded-full ${y.ok ? "bg-status-ok" : "bg-status-warn"}`} /></td>
+                                </tr>
+                              );
+                            })}
                             <tr className="border-t border-border bg-muted/20 font-semibold">
                               <td className="px-4 py-2">Total</td>
                               <td className="px-4 py-2 text-right">{fmtBRL(a.pese.peseTotal.requested)}</td>
@@ -704,16 +707,24 @@ function PanCard({ a, db, peseDb, expanded, isSelected, onToggle, onSelect, onRe
                       </div>
                     </div>
                   )}
-                  {a.pese?.peseCodeResolved && (
-                    <div className={`rounded-lg border p-3 text-sm ${a.pese.peseTotal.ok ? "border-status-ok/30 bg-status-ok/10" : "border-status-warn/30 bg-status-warn/10"}`}>
-                      <div className="flex items-start gap-2">
-                        {a.pese.peseTotal.ok ? <CheckCircle2 className="h-4 w-4 text-status-ok mt-0.5 shrink-0" /> : <AlertTriangle className="h-4 w-4 text-status-warn mt-0.5 shrink-0" />}
-                        <div>
-                          {a.pese.peseTotal.ok ? <span className="text-status-ok font-medium">PESE aprovado - orçamento suficiente</span> : <span className="text-status-warn font-medium">PESE com déficit de {fmtBRL(-a.pese.peseTotal.diff)}</span>}
+                  {a.pese?.peseCodeResolved && (() => {
+                    const missingYears = a.pese!.peseByYear.filter((y) => y.requested > 0 && y.available === 0).map((y) => y.year);
+                    return (
+                      <div className={`rounded-lg border p-3 text-sm ${a.pese!.peseTotal.ok ? "border-status-ok/30 bg-status-ok/10" : "border-status-warn/30 bg-status-warn/10"}`}>
+                        <div className="flex items-start gap-2">
+                          {a.pese!.peseTotal.ok ? <CheckCircle2 className="h-4 w-4 text-status-ok mt-0.5 shrink-0" /> : <AlertTriangle className="h-4 w-4 text-status-warn mt-0.5 shrink-0" />}
+                          <div>
+                            {a.pese!.peseTotal.ok
+                              ? <span className="text-status-ok font-medium">PESE aprovado - orçamento suficiente</span>
+                              : missingYears.length > 0
+                                ? <span className="text-status-warn font-medium">Sem orçamento PESE para {missingYears.join(", ")}</span>
+                                : <span className="text-status-warn font-medium">PESE com déficit de {fmtBRL(-a.pese!.peseTotal.diff)}</span>
+                            }
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
               )}
 
