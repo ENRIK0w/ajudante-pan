@@ -158,7 +158,8 @@ export default function Page() {
       const tp = ov.tp ?? autoTp ?? "";
       const capex = (pan.percentualCapex ?? 100) / 100;
       const flow = pan.fluxoCaixa.filter((f) => f.valor > 0);
-      const years = flow.map((f) => String(f.ano));
+      const panYears = flow.map((f) => String(f.ano));
+      const years = Array.from(new Set([...panYears, ...db.years])).sort();
       const reqByYear: Record<string, number> = {};
       const totalPan = flow.reduce((a, b) => a + b.valor, 0);
       for (const f of flow) reqByYear[String(f.ano)] = f.valor * capex;
