@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/select";
 import { parsePanPdf, type PanData } from "@/lib/pan-parser";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { BudgetDashboard } from "@/components/BudgetDashboard";
 import {
   loadBudgetFromUrl,
   loadCnpjFromUrl,
@@ -82,6 +83,7 @@ interface AnalyzedPan {
   yearTotals: YearCell[];
   status: "ok" | "warn" | "unknown";
   pese?: PeseAnalysis;
+  manualStatus?: "aprovado" | "negado" | "warn";
 }
 
 export default function Page() {
@@ -96,6 +98,7 @@ export default function Page() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState(false);
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, "aprovado" | "negado" | "warn">>({});
   const [dragOver, setDragOver] = useState(false);
 
   useEffect(() => {
@@ -183,7 +186,9 @@ export default function Page() {
         const autoPeseCode = pan.peseCode ? matchPeseCode(pan.peseCode, peseDb) : null;
         const peseCodeResolved = ov.peseCode ?? autoPeseCode;
         const peseAvByYear = peseCodeResolved ? lookupPeseByYear(peseDb, peseCodeResolved) : {};
-        const peseByYear: YearCell[] = years.map((y) => {
+        const peseAvailableYears = Object.keys(peseAvByYear).sort();
+        const allPeseYears = Array.from(new Set([...years, ...peseAvailableYears])).sort();
+        const peseByYear: YearCell[] = allPeseYears.map((y) => {
           const req = reqByYear[y] ?? 0;
           const av = peseAvByYear[y] ?? 0;
           return { year: y, requested: req, available: av, diff: av - req, ok: req <= av };
@@ -235,9 +240,10 @@ export default function Page() {
         yearTotals,
         status,
         pese,
+        manualStatus: statusOverrides[pan.fileName] as "aprovado" | "negado" | "warn" | undefined,
       };
     });
-  }, [pans, db, cnpj, peseDb, overrides]);
+  }, [pans, db, cnpj, peseDb, overrides, statusOverrides]);
 
   const summary = useMemo(() => {
     const ok = analyzed.filter((a) => a.status === "ok").length;
@@ -381,8 +387,10 @@ export default function Page() {
             ws[ref] = { v: "", t: "z", s: {} };
           } else if (col === 20) {
             // Status: colored fill, no text
-            const fillRgb = selectedPans[rowIdx].status === "ok"   ? "92D050"
-                          : selectedPans[rowIdx].status === "warn"  ? "FFFF00"
+            const finalStatus = selectedPans[rowIdx].manualStatus ?? selectedPans[rowIdx].status;
+            const fillRgb = (finalStatus === "ok" || finalStatus === "aprovado") ? "92D050"
+                          : finalStatus === "warn"   ? "FFFF00"
+                          : finalStatus === "negado" ? "FF6B6B"
                           : "D3D3D3";
             ws[ref] = { v: "", t: "s", s: { fill: { patternType: "solid", fgColor: { rgb: fillRgb } } } };
           } else if (col === 21) {
@@ -499,9 +507,9 @@ export default function Page() {
             </div>
           )}
 
-          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {loadingBase ? (
-              [0,1,2,3].map((i) => (
+          {loadingBase ? (
+            <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {[0,1,2,3].map((i) => (
                 <Card key={i} className="p-5">
                   <div className="flex items-center justify-between">
                     <div className="space-y-2">
@@ -511,20 +519,11 @@ export default function Page() {
                     <Skeleton className="h-10 w-10 rounded-lg" />
                   </div>
                 </Card>
-              ))
-            ) : (
-              [
-                <StatCard key="count" label="PANs analisadas" value={String(summary.count)} icon={<FileText className="h-5 w-5" />} />,
-                <StatCard key="ok" label="Aprovadas" value={String(summary.ok)} accent="ok" icon={<CheckCircle2 className="h-5 w-5" />} />,
-                <StatCard key="warn" label="Atenção" value={String(summary.warn + summary.unknown)} accent="warn" icon={<AlertTriangle className="h-5 w-5" />} />,
-                <StatCard key="total" label="Total solicitado" value={fmtBRL(summary.totalReq)} icon={<TrendingUp className="h-5 w-5" />} />,
-              ].map((card, i) => (
-                <motion.div key={i} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07, duration: 0.3 }}>
-                  {card}
-                </motion.div>
-              ))
-            )}
-          </section>
+              ))}
+            </section>
+          ) : db ? (
+            <BudgetDashboard db={db} analyzed={analyzed} />
+          ) : null}
 
           {analyzed.length > 0 && (
             <Card className="p-4">
@@ -584,6 +583,15 @@ export default function Page() {
                           setOverrides({ ...overrides, [a.pan.fileName]: { ...cur, empresas: { ...(cur.empresas ?? {}), [panName]: code } } });
                         }}
                         onPeseCodeChange={(peseCode) => setOverrides({ ...overrides, [a.pan.fileName]: { ...overrides[a.pan.fileName], peseCode } })}
+                        onStatusChange={(status) => {
+                          if (status === null) {
+                            const next = { ...statusOverrides };
+                            delete next[a.pan.fileName];
+                            setStatusOverrides(next);
+                          } else {
+                            setStatusOverrides({ ...statusOverrides, [a.pan.fileName]: status });
+                          }
+                        }}
                       />
                     </motion.div>
                   ))}
@@ -641,17 +649,21 @@ function StatCard({ label, value, icon, accent }: { label: string; value: string
   );
 }
 
-function PanCard({ a, db, peseDb, expanded, isSelected, onToggle, onSelect, onRemove, onTpChange, onEmpresaChange, onPeseCodeChange }: {
+function PanCard({ a, db, peseDb, expanded, isSelected, onToggle, onSelect, onRemove, onTpChange, onEmpresaChange, onPeseCodeChange, onStatusChange }: {
   a: AnalyzedPan; db: BudgetDb; peseDb: PeseDb | null;
   expanded: boolean; isSelected: boolean;
   onToggle: () => void; onSelect: () => void; onRemove: () => void;
   onTpChange: (tp: string) => void; onEmpresaChange: (panName: string, code: string) => void; onPeseCodeChange: (peseCode: string) => void;
+  onStatusChange: (status: "aprovado" | "negado" | "warn" | null) => void;
 }) {
+  const effectiveStatus = a.manualStatus ?? a.status;
   const statusConfig = {
     ok: { label: "Dentro do orçamento", cls: "bg-status-ok/15 text-status-ok border-status-ok/30", dot: "bg-status-ok" },
     warn: { label: "Ação necessária", cls: "bg-status-warn/15 text-status-warn border-status-warn/30", dot: "bg-status-warn animate-pulse" },
     unknown: { label: "Revisar mapeamento", cls: "bg-muted text-muted-foreground border-border", dot: "bg-muted-foreground" },
-  }[a.status];
+    aprovado: { label: "Aprovado", cls: "bg-status-ok/15 text-status-ok border-status-ok/30", dot: "bg-status-ok" },
+    negado: { label: "Negado", cls: "bg-destructive/15 text-destructive border-destructive/30", dot: "bg-destructive" },
+  }[effectiveStatus] ?? { label: effectiveStatus, cls: "bg-muted text-muted-foreground border-border", dot: "bg-muted-foreground" };
   const tp = a.tpResolved ?? "";
   const worst = [...a.rows].sort((x, y) => x.diff - y.diff)[0];
   const tpBadgeLabel = a.pan.tp ? (a.tpResolved && a.tpResolved !== a.pan.tp ? `${a.pan.tp} → ${a.tpResolved}` : a.pan.tp) : "sem TP";
@@ -672,9 +684,12 @@ function PanCard({ a, db, peseDb, expanded, isSelected, onToggle, onSelect, onRe
               <Badge variant="outline" className="text-xs">CAPEX {a.pan.percentualCapex ?? 100}%</Badge>
               {a.pan.isTurnKey && <Badge variant="outline" className="text-xs border border-primary/30 bg-primary/15 text-primary inline-flex items-center gap-1"><Wrench className="h-3 w-3" />Turn Key</Badge>}
               <Badge variant="outline" className={`text-xs border ${statusConfig.cls} inline-flex items-center gap-1`}>
-                {a.status === "ok" ? <CheckCircle2 className="h-3 w-3" /> : a.status === "warn" ? <AlertTriangle className="h-3 w-3" /> : <HelpCircle className="h-3 w-3" />}
+                {(effectiveStatus === "ok" || effectiveStatus === "aprovado") ? <CheckCircle2 className="h-3 w-3" /> : effectiveStatus === "warn" ? <AlertTriangle className="h-3 w-3" /> : effectiveStatus === "negado" ? <X className="h-3 w-3" /> : <HelpCircle className="h-3 w-3" />}
                 {statusConfig.label}
               </Badge>
+              {a.manualStatus && (
+                <Badge variant="outline" className="text-xs border border-border text-muted-foreground">calculado: {a.status}</Badge>
+              )}
             </div>
             <div className="text-sm text-muted-foreground truncate mt-0.5">{a.pan.titulo}</div>
           </div>
@@ -683,6 +698,20 @@ function PanCard({ a, db, peseDb, expanded, isSelected, onToggle, onSelect, onRe
             <div className="text-right"><div className="text-xs text-muted-foreground">Disponível</div><div className="font-medium tabular-nums">{fmtBRL(a.totalAvailable)}</div></div>
           </div>
         </button>
+        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => onStatusChange(a.manualStatus === "aprovado" ? null : "aprovado")}
+            className={`px-2 py-1 text-xs rounded border transition-colors ${a.manualStatus === "aprovado" ? "bg-status-ok text-white border-status-ok" : "border-border text-muted-foreground hover:border-status-ok hover:text-status-ok"}`}
+          >Aprov.</button>
+          <button
+            onClick={() => onStatusChange(a.manualStatus === "warn" ? null : "warn")}
+            className={`px-2 py-1 text-xs rounded border transition-colors ${a.manualStatus === "warn" ? "bg-status-warn text-white border-status-warn" : "border-border text-muted-foreground hover:border-status-warn hover:text-status-warn"}`}
+          >Warn</button>
+          <button
+            onClick={() => onStatusChange(a.manualStatus === "negado" ? null : "negado")}
+            className={`px-2 py-1 text-xs rounded border transition-colors ${a.manualStatus === "negado" ? "bg-destructive text-white border-destructive" : "border-border text-muted-foreground hover:border-destructive hover:text-destructive"}`}
+          >Neg.</button>
+        </div>
         <button onClick={(e) => { e.stopPropagation(); onRemove(); }} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground">
           <X className="h-4 w-4" />
         </button>
