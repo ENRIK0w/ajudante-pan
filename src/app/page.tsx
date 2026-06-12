@@ -257,9 +257,10 @@ export default function Page() {
   }, [pans, db, cnpj, peseDb, overrides, statusOverrides]);
 
   const summary = useMemo(() => {
-    const ok = analyzed.filter((a) => a.status === "ok").length;
-    const warn = analyzed.filter((a) => a.status === "warn").length;
-    const unknown = analyzed.filter((a) => a.status === "unknown").length;
+    const effective = (a: AnalyzedPan) => a.manualStatus ?? a.status;
+    const ok = analyzed.filter((a) => effective(a) === "ok" || effective(a) === "aprovado").length;
+    const warn = analyzed.filter((a) => effective(a) === "warn").length;
+    const unknown = analyzed.filter((a) => effective(a) === "unknown" || effective(a) === "negado").length;
     const totalReq = analyzed.reduce((a, b) => a + b.totalRequested, 0);
     const totalAv = analyzed.reduce((a, b) => a + b.totalAvailable, 0);
     return { ok, warn, unknown, totalReq, totalAv, count: analyzed.length };
@@ -278,7 +279,7 @@ export default function Page() {
   };
 
   const selectAllOk = () => {
-    const okPans = analyzed.filter((a) => a.status === "ok").map((a) => a.pan.fileName);
+    const okPans = analyzed.filter((a) => (a.manualStatus ?? a.status) === "ok" || a.manualStatus === "aprovado").map((a) => a.pan.fileName);
     setSelected(new Set(okPans));
   };
 
@@ -709,9 +710,6 @@ function PanCard({ a, db, peseDb, expanded, isSelected, onToggle, onSelect, onRe
                 {(effectiveStatus === "ok" || effectiveStatus === "aprovado") ? <CheckCircle2 className="h-3 w-3" /> : effectiveStatus === "warn" ? <AlertTriangle className="h-3 w-3" /> : effectiveStatus === "negado" ? <X className="h-3 w-3" /> : <HelpCircle className="h-3 w-3" />}
                 {statusConfig.label}
               </Badge>
-              {a.manualStatus && (
-                <Badge variant="outline" className="text-xs border border-border text-muted-foreground">calculado: {a.status}</Badge>
-              )}
             </div>
             <div className="text-sm text-muted-foreground truncate mt-0.5">{a.pan.titulo}</div>
           </div>
