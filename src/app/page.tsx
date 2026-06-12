@@ -8,23 +8,16 @@ import {
   CheckCircle2,
   AlertTriangle,
   TrendingUp,
-  Database,
   Loader2,
   X,
-  Sparkles,
   ChevronDown,
   ChevronRight,
   Wrench,
   Download,
   CheckSquare,
   Square,
-  LayoutDashboard,
   FolderOpen,
-  Settings,
   HelpCircle,
-  Menu,
-  BarChart3,
-  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -452,86 +445,42 @@ export default function Page() {
     }
   };
 
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-
   return (
-    <div className="min-h-screen bg-canvas flex">
-      <aside className={`${sidebarOpen ? "w-64" : "w-20"} bg-surface border-r border-border/60 flex flex-col transition-all duration-300 fixed h-full z-40`}>
-        <div className="p-4 border-b border-border/60">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-brand grid place-items-center shadow-glow shrink-0">
-              <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6 text-white" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="8" width="18" height="12" rx="3" />
-                <circle cx="9" cy="13" r="1.5" fill="currentColor" stroke="none" />
-                <circle cx="15" cy="13" r="1.5" fill="currentColor" stroke="none" />
-                <path d="M9 17h6" />
-                <path d="M12 8V5" />
-                <circle cx="12" cy="4" r="1" fill="currentColor" stroke="none" />
-                <path d="M3 13H1M23 13h-2" />
-              </svg>
-            </div>
-            {sidebarOpen && (
-              <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="overflow-hidden">
-                <div className="font-bold text-lg tracking-tight">Ajudante das PAN</div>
-                <div className="text-[10px] text-muted-foreground uppercase tracking-wider">v 0.0.1</div>
-              </motion.div>
-            )}
+    <div className="min-h-screen bg-canvas">
+      <header className="h-16 border-b border-border/60 bg-surface/80 backdrop-blur-xl sticky top-0 z-30 px-6 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="h-9 w-9 rounded-xl bg-gradient-brand grid place-items-center shadow-glow shrink-0">
+            <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5 text-white" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="8" width="18" height="12" rx="3" />
+              <circle cx="9" cy="13" r="1.5" fill="currentColor" stroke="none" />
+              <circle cx="15" cy="13" r="1.5" fill="currentColor" stroke="none" />
+              <path d="M9 17h6" />
+              <path d="M12 8V5" />
+              <circle cx="12" cy="4" r="1" fill="currentColor" stroke="none" />
+              <path d="M3 13H1M23 13h-2" />
+            </svg>
+          </div>
+          <div>
+            <div className="font-bold text-sm leading-tight">Ajudante das PAN</div>
+            <div className="text-[10px] text-muted-foreground leading-tight">v 0.0.1</div>
           </div>
         </div>
-        <nav className="flex-1 p-3 space-y-1">
-          <SidebarItem icon={<LayoutDashboard />} label="Dashboard" active sidebarOpen={sidebarOpen} />
-          <SidebarItem icon={<FolderOpen />} label="PANs" badge={analyzed.length > 0 ? String(analyzed.length) : undefined} sidebarOpen={sidebarOpen} />
-          <SidebarItem icon={<BarChart3 />} label="Relatórios" sidebarOpen={sidebarOpen} />
-          <SidebarItem icon={<Database />} label="Base de Dados" sidebarOpen={sidebarOpen} />
-        </nav>
-        <div className="p-3 border-t border-border/60 space-y-1">
-          <SidebarItem icon={<Settings />} label="Configurações" sidebarOpen={sidebarOpen} />
-          <SidebarItem icon={<HelpCircle />} label="Ajuda" sidebarOpen={sidebarOpen} />
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className={`h-2 w-2 rounded-full shrink-0 ${loadingBase ? "bg-muted-foreground animate-pulse" : db && cnpj && peseDb ? "bg-status-ok animate-pulse" : "bg-destructive"}`} />
+            <span className="hidden sm:inline">
+              {loadingBase ? "Carregando base..." : db && cnpj && peseDb ? "Base carregada" : "Erro na base"}
+            </span>
+          </div>
+          <ThemeToggle />
         </div>
-        {sidebarOpen && (
-          <div className="p-4 border-t border-border/60">
-            <div className="rounded-lg bg-muted/50 p-3">
-              <div className="flex items-center gap-2 text-xs">
-                <div className={`h-2 w-2 rounded-full ${db && cnpj && peseDb ? "bg-status-ok animate-pulse" : "bg-muted-foreground"}`} />
-                <span className="text-muted-foreground">
-                  {loadingBase ? "Carregando..." : db && cnpj && peseDb ? "Sistema operacional" : "Erro na base"}
-                </span>
-              </div>
-              {db && cnpj && peseDb && (
-                <div className="mt-2 text-[10px] text-muted-foreground space-y-0.5">
-                  <div>{db.rows.length.toLocaleString()} linhas orçamento</div>
-                  <div>{cnpj.length} empresas CNPJ</div>
-                  <div>{peseDb.peseCodes.length} códigos PESE</div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="absolute -right-3 top-20 h-6 w-6 rounded-full bg-surface border border-border shadow-sm grid place-items-center hover:bg-muted transition-colors"
-        >
-          <ChevronRight className={`h-3 w-3 text-muted-foreground transition-transform ${sidebarOpen ? "rotate-180" : ""}`} />
-        </button>
-      </aside>
+      </header>
 
-      <div className={`flex-1 ${sidebarOpen ? "ml-64" : "ml-20"} transition-all duration-300`}>
-        <header className="h-16 border-b border-border/60 bg-surface/80 backdrop-blur-xl sticky top-0 z-30 px-6 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-lg hover:bg-muted transition-colors lg:hidden">
-              <Menu className="h-5 w-5" />
-            </button>
-          </div>
-          <div className="flex items-center gap-3">
-            <ThemeToggle />
-          </div>
-        </header>
-
-        <main className="p-6 space-y-6">
+      <main className="max-w-6xl mx-auto px-6 py-8 space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-              <p className="text-sm text-muted-foreground mt-1">Análise e verificação de PANs contra orçamento aprovado</p>
+              <h1 className="text-xl font-bold tracking-tight">Análise de PANs</h1>
+              <p className="text-sm text-muted-foreground mt-0.5">Verificação contra orçamento aprovado</p>
             </div>
             <div className="flex items-center gap-2">
               <input type="file" id="upload-pan" accept="application/pdf" multiple className="hidden" onChange={(e) => { handleFiles(e.target.files); e.target.value = ""; }} />
@@ -672,23 +621,8 @@ export default function Page() {
               )}
             </Card>
           )}
-        </main>
-      </div>
+      </main>
     </div>
-  );
-}
-
-function SidebarItem({ icon, label, active, badge, sidebarOpen }: { icon: React.ReactNode; label: string; active?: boolean; badge?: string; sidebarOpen: boolean }) {
-  return (
-    <button className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
-      <span className="shrink-0 [&>svg]:h-5 [&>svg]:w-5">{icon}</span>
-      {sidebarOpen && (
-        <>
-          <span className="flex-1 text-left text-sm font-medium">{label}</span>
-          {badge && <Badge variant="secondary" className="h-5 px-1.5 text-xs">{badge}</Badge>}
-        </>
-      )}
-    </button>
   );
 }
 
