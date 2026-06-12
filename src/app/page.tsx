@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/select";
 import { parsePanPdf, type PanData } from "@/lib/pan-parser";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import {
   loadBudgetFromUrl,
   loadCnpjFromUrl,
@@ -49,6 +50,17 @@ import XLSX from "xlsx-js-style";
 
 const fmtBRL = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+
+function Num({ v, tip, className }: { v: string; tip: React.ReactNode; className?: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className={`cursor-help underline decoration-dotted decoration-muted-foreground/30 underline-offset-2 ${className ?? ""}`}>{v}</span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-64 leading-relaxed whitespace-pre-line">{tip}</TooltipContent>
+    </Tooltip>
+  );
+}
 
 interface YearCell {
   year: string;
@@ -521,10 +533,10 @@ export default function Page() {
               ))
             ) : (
               [
-                <StatCard key="count" label="PANs analisadas" value={String(summary.count)} icon={<FileText className="h-5 w-5" />} />,
-                <StatCard key="ok" label="Aprovadas" value={String(summary.ok)} accent="ok" icon={<CheckCircle2 className="h-5 w-5" />} />,
-                <StatCard key="warn" label="Atenção" value={String(summary.warn + summary.unknown)} accent="warn" icon={<AlertTriangle className="h-5 w-5" />} />,
-                <StatCard key="total" label="Total solicitado" value={fmtBRL(summary.totalReq)} icon={<TrendingUp className="h-5 w-5" />} />,
+                <StatCard key="count" label="PANs analisadas" value={String(summary.count)} icon={<FileText className="h-5 w-5" />} tip="Total de PDFs carregados nesta sessão" />,
+                <StatCard key="ok" label="Aprovadas" value={String(summary.ok)} accent="ok" icon={<CheckCircle2 className="h-5 w-5" />} tip="PANs com orçamento suficiente em todas as empresas e anos" />,
+                <StatCard key="warn" label="Atenção" value={String(summary.warn + summary.unknown)} accent="warn" icon={<AlertTriangle className="h-5 w-5" />} tip={`${summary.warn} com déficit orçamentário · ${summary.unknown} com mapeamento incompleto`} />,
+                <StatCard key="total" label="Total solicitado" value={fmtBRL(summary.totalReq)} icon={<TrendingUp className="h-5 w-5" />} tip="Σ fluxo de caixa × CAPEX% de todas as PANs carregadas" />,
               ].map((card, i) => (
                 <motion.div key={i} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07, duration: 0.3 }}>
                   {card}
@@ -642,14 +654,16 @@ export default function Page() {
   );
 }
 
-function StatCard({ label, value, icon, accent }: { label: string; value: string; icon: React.ReactNode; accent?: "ok" | "warn" }) {
+function StatCard({ label, value, icon, accent, tip }: { label: string; value: string; icon: React.ReactNode; accent?: "ok" | "warn"; tip?: string }) {
   const tone = accent === "ok" ? "text-status-ok bg-status-ok/10" : accent === "warn" ? "text-status-warn bg-status-warn/10" : "text-primary bg-primary/10";
   return (
     <Card className="p-5">
       <div className="flex items-center justify-between">
         <div>
           <div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div>
-          <div className="mt-1 text-2xl font-semibold tracking-tight tabular-nums">{value}</div>
+          <div className="mt-1 text-2xl font-semibold tracking-tight tabular-nums">
+            {tip ? <Num v={value} tip={tip} /> : value}
+          </div>
         </div>
         <div className={`h-10 w-10 rounded-lg grid place-items-center ${tone}`}>{icon}</div>
       </div>
@@ -702,8 +716,18 @@ function PanCard({ a, db, peseDb, expanded, isSelected, onToggle, onSelect, onRe
             <div className="text-sm text-muted-foreground truncate mt-0.5">{a.pan.titulo}</div>
           </div>
           <div className="hidden md:flex items-center gap-6 text-sm">
-            <div className="text-right"><div className="text-xs text-muted-foreground">Solicitado</div><div className="font-medium tabular-nums">{fmtBRL(a.totalRequested)}</div></div>
-            <div className="text-right"><div className="text-xs text-muted-foreground">Disponível</div><div className="font-medium tabular-nums">{fmtBRL(a.totalAvailable)}</div></div>
+            <div className="text-right">
+              <div className="text-xs text-muted-foreground">Solicitado</div>
+              <div className="font-medium tabular-nums">
+                <Num v={fmtBRL(a.totalRequested)} tip={a.pan.isTurnKey ? `Σ fluxo de caixa × CAPEX ${a.pan.percentualCapex ?? 100}%\nbase: base pese.xlsx` : `Σ rateio das empresas × CAPEX ${a.pan.percentualCapex ?? 100}%`} />
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-xs text-muted-foreground">Disponível</div>
+              <div className="font-medium tabular-nums">
+                <Num v={fmtBRL(a.totalAvailable)} tip={a.pan.isTurnKey ? `Σ orçamento PESE × 1,2195 (fator fiscal)\ncódigo: ${a.pese?.peseCodeResolved ?? "—"}\nbase: base pese.xlsx` : `Σ orçamento TP ${a.tpResolved ?? "?"} por empresa\nbase: orcamento.xlsx`} />
+              </div>
+            </div>
           </div>
         </button>
         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
@@ -768,18 +792,18 @@ function PanCard({ a, db, peseDb, expanded, isSelected, onToggle, onSelect, onRe
                               return (
                                 <tr key={y.year} className={`border-t border-border/40 transition-colors ${noBudget ? "bg-status-warn/5" : idx % 2 === 1 ? "bg-muted/20" : ""}`}>
                                   <td className="px-4 py-2.5 font-medium">{y.year}</td>
-                                  <td className="px-4 py-2.5 text-right tabular-nums">{fmtBRL(y.requested)}</td>
-                                  <td className={`px-4 py-2.5 text-right tabular-nums ${noBudget ? "text-status-warn font-medium" : ""}`}>{noBudget ? "Sem orçamento" : fmtBRL(y.available)}</td>
-                                  <td className={`px-4 py-2.5 text-right font-medium tabular-nums ${y.ok ? "text-status-ok" : "text-status-warn"}`}>{y.diff >= 0 ? "+" : ""}{fmtBRL(y.diff)}</td>
+                                  <td className="px-4 py-2.5 text-right tabular-nums"><Num v={fmtBRL(y.requested)} tip={y.requested > 0 ? `Fluxo de caixa ${y.year} × CAPEX ${a.pan.percentualCapex ?? 100}%` : "Sem solicitação neste ano"} /></td>
+                                  <td className={`px-4 py-2.5 text-right tabular-nums ${noBudget ? "text-status-warn font-medium" : ""}`}>{noBudget ? "Sem orçamento" : <Num v={fmtBRL(y.available)} tip={`Orçamento PESE × 1,2195 (fator fiscal)\ncódigo: ${a.pese!.peseCodeResolved}\nbase: base pese.xlsx`} />}</td>
+                                  <td className={`px-4 py-2.5 text-right font-medium tabular-nums ${y.ok ? "text-status-ok" : "text-status-warn"}`}><Num v={`${y.diff >= 0 ? "+" : ""}${fmtBRL(y.diff)}`} tip={`PESE (${fmtBRL(y.available)}) − PAN (${fmtBRL(y.requested)})`} /></td>
                                   <td className="px-4 py-2.5 text-center"><span className={`inline-block h-2 w-2 rounded-full ${y.ok ? "bg-status-ok" : "bg-status-warn"}`} /></td>
                                 </tr>
                               );
                             })}
                             <tr className="border-t-2 border-border bg-primary/5 font-semibold">
                               <td className="px-4 py-2.5">Total</td>
-                              <td className="px-4 py-2.5 text-right tabular-nums">{fmtBRL(a.pese.peseTotal.requested)}</td>
-                              <td className="px-4 py-2.5 text-right tabular-nums">{fmtBRL(a.pese.peseTotal.available)}</td>
-                              <td className={`px-4 py-2.5 text-right tabular-nums ${a.pese.peseTotal.ok ? "text-status-ok" : "text-status-warn"}`}>{a.pese.peseTotal.diff >= 0 ? "+" : ""}{fmtBRL(a.pese.peseTotal.diff)}</td>
+                              <td className="px-4 py-2.5 text-right tabular-nums"><Num v={fmtBRL(a.pese.peseTotal.requested)} tip={`Σ fluxo de caixa × CAPEX ${a.pan.percentualCapex ?? 100}%`} /></td>
+                              <td className="px-4 py-2.5 text-right tabular-nums"><Num v={fmtBRL(a.pese.peseTotal.available)} tip={`Σ orçamento PESE × 1,2195 (fator fiscal)\ncódigo: ${a.pese.peseCodeResolved}\nbase: base pese.xlsx`} /></td>
+                              <td className={`px-4 py-2.5 text-right tabular-nums ${a.pese.peseTotal.ok ? "text-status-ok" : "text-status-warn"}`}><Num v={`${a.pese.peseTotal.diff >= 0 ? "+" : ""}${fmtBRL(a.pese.peseTotal.diff)}`} tip={`PESE (${fmtBRL(a.pese.peseTotal.available)}) − PAN (${fmtBRL(a.pese.peseTotal.requested)})`} /></td>
                               <td />
                             </tr>
                           </tbody>
@@ -823,17 +847,17 @@ function PanCard({ a, db, peseDb, expanded, isSelected, onToggle, onSelect, onRe
                         {a.yearTotals.map((y, idx) => (
                           <tr key={y.year} className={`border-t border-border/40 transition-colors ${idx % 2 === 1 ? "bg-muted/20" : ""}`}>
                             <td className="px-4 py-2.5 font-medium">{y.year}</td>
-                            <td className="px-4 py-2.5 text-right tabular-nums">{fmtBRL(y.requested)}</td>
-                            <td className="px-4 py-2.5 text-right tabular-nums">{fmtBRL(y.available)}</td>
-                            <td className={`px-4 py-2.5 text-right font-medium tabular-nums ${y.ok ? "text-status-ok" : "text-status-warn"}`}>{y.diff >= 0 ? "+" : ""}{fmtBRL(y.diff)}</td>
+                            <td className="px-4 py-2.5 text-right tabular-nums"><Num v={fmtBRL(y.requested)} tip={`Fluxo de caixa ${y.year} × CAPEX ${a.pan.percentualCapex ?? 100}%`} /></td>
+                            <td className="px-4 py-2.5 text-right tabular-nums"><Num v={fmtBRL(y.available)} tip={`Σ orçamento TP ${tp} · ${a.rows.length} empresa(s)\nbase: orcamento.xlsx`} /></td>
+                            <td className={`px-4 py-2.5 text-right font-medium tabular-nums ${y.ok ? "text-status-ok" : "text-status-warn"}`}><Num v={`${y.diff >= 0 ? "+" : ""}${fmtBRL(y.diff)}`} tip={`Orçamento (${fmtBRL(y.available)}) − Pedido (${fmtBRL(y.requested)})`} /></td>
                             <td className="px-4 py-2.5 text-center"><span className={`inline-block h-2 w-2 rounded-full ${y.ok ? "bg-status-ok" : "bg-status-warn"}`} /></td>
                           </tr>
                         ))}
                         <tr className="border-t-2 border-border bg-primary/5 font-semibold">
                           <td className="px-4 py-2.5">Total</td>
-                          <td className="px-4 py-2.5 text-right tabular-nums">{fmtBRL(a.totalRequested)}</td>
-                          <td className="px-4 py-2.5 text-right tabular-nums">{fmtBRL(a.totalAvailable)}</td>
-                          <td className={`px-4 py-2.5 text-right tabular-nums ${a.totalAvailable - a.totalRequested >= 0 ? "text-status-ok" : "text-status-warn"}`}>{a.totalAvailable - a.totalRequested >= 0 ? "+" : ""}{fmtBRL(a.totalAvailable - a.totalRequested)}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums"><Num v={fmtBRL(a.totalRequested)} tip={`Σ fluxo de caixa × CAPEX ${a.pan.percentualCapex ?? 100}%`} /></td>
+                          <td className="px-4 py-2.5 text-right tabular-nums"><Num v={fmtBRL(a.totalAvailable)} tip={`Σ orçamento TP ${tp} em todos os anos\nbase: orcamento.xlsx`} /></td>
+                          <td className={`px-4 py-2.5 text-right tabular-nums ${a.totalAvailable - a.totalRequested >= 0 ? "text-status-ok" : "text-status-warn"}`}><Num v={`${a.totalAvailable - a.totalRequested >= 0 ? "+" : ""}${fmtBRL(a.totalAvailable - a.totalRequested)}`} tip={`Orçamento (${fmtBRL(a.totalAvailable)}) − Pedido (${fmtBRL(a.totalRequested)})`} /></td>
                           <td />
                         </tr>
                       </tbody>
@@ -857,9 +881,9 @@ function PanCard({ a, db, peseDb, expanded, isSelected, onToggle, onSelect, onRe
                             <div className="text-xs text-muted-foreground mt-0.5">{action}</div>
                           </div>
                           <div className="flex items-center gap-4">
-                            <div className="text-right text-sm"><div className="text-xs text-muted-foreground">Pedido</div><div className="tabular-nums">{fmtBRL(r.requested)}</div></div>
-                            <div className="text-right text-sm"><div className="text-xs text-muted-foreground">Disponível</div><div className="tabular-nums">{fmtBRL(r.available)}</div></div>
-                            <div className="text-right text-sm"><div className="text-xs text-muted-foreground">Diferença</div><div className={`tabular-nums ${r.ok ? "text-status-ok font-medium" : "text-status-warn font-medium"}`}>{r.diff >= 0 ? "+" : ""}{fmtBRL(r.diff)}</div></div>
+                            <div className="text-right text-sm"><div className="text-xs text-muted-foreground">Pedido</div><div className="tabular-nums"><Num v={fmtBRL(r.requested)} tip={`Valor do rateio × CAPEX ${a.pan.percentualCapex ?? 100}%`} /></div></div>
+                            <div className="text-right text-sm"><div className="text-xs text-muted-foreground">Disponível</div><div className="tabular-nums"><Num v={fmtBRL(r.available)} tip={r.empresaCode ? `TP ${tp} — ${r.empresaCode}\nbase: orcamento.xlsx` : "Empresa não mapeada na base"} /></div></div>
+                            <div className="text-right text-sm"><div className="text-xs text-muted-foreground">Diferença</div><div className={`tabular-nums ${r.ok ? "text-status-ok font-medium" : "text-status-warn font-medium"}`}><Num v={`${r.diff >= 0 ? "+" : ""}${fmtBRL(r.diff)}`} tip={`Disponível (${fmtBRL(r.available)}) − Pedido (${fmtBRL(r.requested)})`} /></div></div>
                             <Select value={r.empresaCode ?? ""} onValueChange={(v) => onEmpresaChange(r.empresaPan, v)}>
                               <SelectTrigger className="w-32 h-8"><SelectValue placeholder="Código" /></SelectTrigger>
                               <SelectContent>{db.empresas.map((e) => <SelectItem key={e} value={e}>{e}</SelectItem>)}</SelectContent>
