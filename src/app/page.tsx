@@ -32,7 +32,6 @@ import {
 } from "@/components/ui/select";
 import { parsePanPdf, type PanData } from "@/lib/pan-parser";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { BudgetDashboard } from "@/components/BudgetDashboard";
 import {
   loadBudgetFromUrl,
   loadCnpjFromUrl,
@@ -507,9 +506,9 @@ export default function Page() {
             </div>
           )}
 
-          {loadingBase ? (
-            <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {[0,1,2,3].map((i) => (
+          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {loadingBase ? (
+              [0,1,2,3].map((i) => (
                 <Card key={i} className="p-5">
                   <div className="flex items-center justify-between">
                     <div className="space-y-2">
@@ -519,11 +518,20 @@ export default function Page() {
                     <Skeleton className="h-10 w-10 rounded-lg" />
                   </div>
                 </Card>
-              ))}
-            </section>
-          ) : db ? (
-            <BudgetDashboard db={db} analyzed={analyzed} />
-          ) : null}
+              ))
+            ) : (
+              [
+                <StatCard key="count" label="PANs analisadas" value={String(summary.count)} icon={<FileText className="h-5 w-5" />} />,
+                <StatCard key="ok" label="Aprovadas" value={String(summary.ok)} accent="ok" icon={<CheckCircle2 className="h-5 w-5" />} />,
+                <StatCard key="warn" label="Atenção" value={String(summary.warn + summary.unknown)} accent="warn" icon={<AlertTriangle className="h-5 w-5" />} />,
+                <StatCard key="total" label="Total solicitado" value={fmtBRL(summary.totalReq)} icon={<TrendingUp className="h-5 w-5" />} />,
+              ].map((card, i) => (
+                <motion.div key={i} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07, duration: 0.3 }}>
+                  {card}
+                </motion.div>
+              ))
+            )}
+          </section>
 
           {analyzed.length > 0 && (
             <Card className="p-4">
@@ -861,11 +869,6 @@ function PanCard({ a, db, peseDb, expanded, isSelected, onToggle, onSelect, onRe
                         {r.empresaCode && r.available > 0 && (
                           <div className="mt-3 h-1.5 w-full rounded-full bg-muted overflow-hidden">
                             <div className={`h-full ${r.ok ? "bg-status-ok" : "bg-status-warn"}`} style={{ width: `${Math.min(100, (r.requested / r.available) * 100)}%` }} />
-                          </div>
-                        )}
-                        {r.empresaCode && r.byYear.length > 0 && (
-                          <div className="mt-4 grid gap-3" style={{ gridTemplateColumns: `repeat(${Math.min(r.byYear.length, 5)}, minmax(0, 1fr))` }}>
-                            {r.byYear.map((y) => <YearDetailCard key={y.year} year={y} empresaPan={r.empresaPan} empresaCode={r.empresaCode!} empresaValor={r.requested} tp={tp} />)}
                           </div>
                         )}
                       </div>
