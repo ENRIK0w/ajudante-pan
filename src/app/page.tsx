@@ -29,6 +29,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -102,6 +103,7 @@ export default function Page() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -549,10 +551,30 @@ export default function Page() {
           )}
 
           <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard label="PANs analisadas" value={String(summary.count)} icon={<FileText className="h-5 w-5" />} />
-            <StatCard label="Aprovadas" value={String(summary.ok)} accent="ok" icon={<CheckCircle2 className="h-5 w-5" />} />
-            <StatCard label="Atenção" value={String(summary.warn + summary.unknown)} accent="warn" icon={<AlertTriangle className="h-5 w-5" />} />
-            <StatCard label="Total solicitado" value={fmtBRL(summary.totalReq)} icon={<TrendingUp className="h-5 w-5" />} />
+            {loadingBase ? (
+              [0,1,2,3].map((i) => (
+                <Card key={i} className="p-5">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-2">
+                      <Skeleton className="h-3 w-28" />
+                      <Skeleton className="h-7 w-14" />
+                    </div>
+                    <Skeleton className="h-10 w-10 rounded-lg" />
+                  </div>
+                </Card>
+              ))
+            ) : (
+              [
+                <StatCard key="count" label="PANs analisadas" value={String(summary.count)} icon={<FileText className="h-5 w-5" />} />,
+                <StatCard key="ok" label="Aprovadas" value={String(summary.ok)} accent="ok" icon={<CheckCircle2 className="h-5 w-5" />} />,
+                <StatCard key="warn" label="Atenção" value={String(summary.warn + summary.unknown)} accent="warn" icon={<AlertTriangle className="h-5 w-5" />} />,
+                <StatCard key="total" label="Total solicitado" value={fmtBRL(summary.totalReq)} icon={<TrendingUp className="h-5 w-5" />} />,
+              ].map((card, i) => (
+                <motion.div key={i} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07, duration: 0.3 }}>
+                  {card}
+                </motion.div>
+              ))
+            )}
           </section>
 
           {analyzed.length > 0 && (
@@ -576,6 +598,20 @@ export default function Page() {
             </Card>
           )}
 
+          {processing && (
+            <Card className="p-5 overflow-hidden relative">
+              <div className="flex items-center gap-4">
+                <Loader2 className="h-5 w-5 text-primary animate-spin shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-52" />
+                  <Skeleton className="h-3 w-80 max-w-full" />
+                </div>
+                <Skeleton className="h-8 w-24 rounded-md hidden sm:block" />
+              </div>
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/5 to-transparent animate-shimmer pointer-events-none" />
+            </Card>
+          )}
+
           {analyzed.length > 0 && (
             <section className="space-y-4">
               <div className="flex items-center justify-between">
@@ -585,7 +621,7 @@ export default function Page() {
               <div className="space-y-3">
                 <AnimatePresence initial={false}>
                   {analyzed.map((a, i) => (
-                    <motion.div key={a.pan.fileName + i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ delay: i * 0.03 }}>
+                    <motion.div key={a.pan.fileName + i} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.98 }} transition={{ delay: i * 0.04, duration: 0.25 }} whileHover={{ y: -1 }}>
                       <PanCard
                         a={a} db={db!} peseDb={peseDb}
                         expanded={expanded.has(a.pan.fileName)}
@@ -608,18 +644,32 @@ export default function Page() {
           )}
 
           {analyzed.length === 0 && !processing && (
-            <Card className="p-12 text-center border-dashed">
-              <div className="mx-auto h-16 w-16 rounded-2xl bg-muted grid place-items-center mb-4">
-                <FolderOpen className="h-8 w-8 text-muted-foreground" />
-              </div>
-              <h3 className="text-lg font-semibold">Nenhuma PAN analisada</h3>
-              <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
-                Faça upload de arquivos dos PDFs aqui.
+            <Card
+              className={`p-14 text-center border-2 border-dashed transition-all duration-200 cursor-pointer select-none ${dragOver ? "border-primary bg-primary/5 scale-[1.008]" : "border-border/60 hover:border-primary/40 hover:bg-muted/20"}`}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }}
+              onClick={() => document.getElementById("upload-pan")?.click()}
+            >
+              <motion.div
+                animate={{ scale: dragOver ? 1.18 : 1 }}
+                transition={{ type: "spring", stiffness: 280, damping: 18 }}
+                className={`mx-auto h-20 w-20 rounded-2xl grid place-items-center mb-5 transition-colors ${dragOver ? "bg-primary/15" : "bg-muted"}`}
+              >
+                <Upload className={`h-9 w-9 transition-colors ${dragOver ? "text-primary" : "text-muted-foreground"}`} />
+              </motion.div>
+              <h3 className="text-xl font-semibold">{dragOver ? "Solte os arquivos aqui" : "Nenhuma PAN carregada"}</h3>
+              <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
+                {dragOver ? "Arquivos PDF serão processados automaticamente" : "Arraste PDFs para cá ou clique para selecionar arquivos"}
               </p>
-              <Button variant="outline" className="gap-2 mt-4" onClick={() => document.getElementById("upload-pan")?.click()}>
-                <Upload className="h-4 w-4" />
-                Selecionar arquivos
-              </Button>
+              {!dragOver && (
+                <div className="flex items-center justify-center gap-2 mt-6">
+                  <Button variant="outline" className="gap-2 pointer-events-none">
+                    <Upload className="h-4 w-4" />
+                    Selecionar arquivos
+                  </Button>
+                </div>
+              )}
             </Card>
           )}
         </main>
@@ -649,7 +699,7 @@ function StatCard({ label, value, icon, accent }: { label: string; value: string
       <div className="flex items-center justify-between">
         <div>
           <div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div>
-          <div className="mt-1 text-2xl font-semibold tracking-tight">{value}</div>
+          <div className="mt-1 text-2xl font-semibold tracking-tight tabular-nums">{value}</div>
         </div>
         <div className={`h-10 w-10 rounded-lg grid place-items-center ${tone}`}>{icon}</div>
       </div>
@@ -665,7 +715,7 @@ function PanCard({ a, db, peseDb, expanded, isSelected, onToggle, onSelect, onRe
 }) {
   const statusConfig = {
     ok: { label: "Dentro do orçamento", cls: "bg-status-ok/15 text-status-ok border-status-ok/30", dot: "bg-status-ok" },
-    warn: { label: "Ação necessária", cls: "bg-status-warn/15 text-status-warn border-status-warn/30", dot: "bg-status-warn" },
+    warn: { label: "Ação necessária", cls: "bg-status-warn/15 text-status-warn border-status-warn/30", dot: "bg-status-warn animate-pulse" },
     unknown: { label: "Revisar mapeamento", cls: "bg-muted text-muted-foreground border-border", dot: "bg-muted-foreground" },
   }[a.status];
   const tp = a.tpResolved ?? "";
@@ -686,14 +736,17 @@ function PanCard({ a, db, peseDb, expanded, isSelected, onToggle, onSelect, onRe
               <span className="font-semibold">PAN {a.pan.panNumber ?? "?"}</span>
               <Badge variant="outline" className="text-xs">TP {tpBadgeLabel}</Badge>
               <Badge variant="outline" className="text-xs">CAPEX {a.pan.percentualCapex ?? 100}%</Badge>
-              {a.pan.isTurnKey && <Badge variant="outline" className="text-xs border border-blue-500/30 bg-blue-500/15 text-blue-600"><Wrench className="h-3 w-3 mr-1" />Turn Key</Badge>}
-              <Badge variant="outline" className={`text-xs border ${statusConfig.cls}`}>{statusConfig.label}</Badge>
+              {a.pan.isTurnKey && <Badge variant="outline" className="text-xs border border-primary/30 bg-primary/15 text-primary inline-flex items-center gap-1"><Wrench className="h-3 w-3" />Turn Key</Badge>}
+              <Badge variant="outline" className={`text-xs border ${statusConfig.cls} inline-flex items-center gap-1`}>
+                {a.status === "ok" ? <CheckCircle2 className="h-3 w-3" /> : a.status === "warn" ? <AlertTriangle className="h-3 w-3" /> : <HelpCircle className="h-3 w-3" />}
+                {statusConfig.label}
+              </Badge>
             </div>
             <div className="text-sm text-muted-foreground truncate mt-0.5">{a.pan.titulo}</div>
           </div>
           <div className="hidden md:flex items-center gap-6 text-sm">
-            <div className="text-right"><div className="text-xs text-muted-foreground">Solicitado</div><div className="font-medium">{fmtBRL(a.totalRequested)}</div></div>
-            <div className="text-right"><div className="text-xs text-muted-foreground">Disponível</div><div className="font-medium">{fmtBRL(a.totalAvailable)}</div></div>
+            <div className="text-right"><div className="text-xs text-muted-foreground">Solicitado</div><div className="font-medium tabular-nums">{fmtBRL(a.totalRequested)}</div></div>
+            <div className="text-right"><div className="text-xs text-muted-foreground">Disponível</div><div className="font-medium tabular-nums">{fmtBRL(a.totalAvailable)}</div></div>
           </div>
         </button>
         <button onClick={(e) => { e.stopPropagation(); onRemove(); }} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground">
@@ -717,8 +770,8 @@ function PanCard({ a, db, peseDb, expanded, isSelected, onToggle, onSelect, onRe
               )}
 
               {a.pan.isTurnKey && peseDb && (
-                <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-4 space-y-4">
-                  <div className="flex items-center gap-2"><Wrench className="h-4 w-4 text-blue-600" /><span className="text-sm font-medium text-blue-600">Verificação PESE (Turn Key)</span></div>
+                <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-4">
+                  <div className="flex items-center gap-2"><Wrench className="h-4 w-4 text-primary" /><span className="text-sm font-medium text-primary">Verificação PESE (Turn Key)</span></div>
                   <div className="flex items-center gap-3 flex-wrap">
                     <span className="text-sm text-muted-foreground">Código PESE:</span>
                     <Select value={a.pese?.peseCodeResolved ?? ""} onValueChange={onPeseCodeChange}>
@@ -733,29 +786,29 @@ function PanCard({ a, db, peseDb, expanded, isSelected, onToggle, onSelect, onRe
                         <div className="text-sm font-medium">Orçamento PESE por ano</div>
                         <div className="text-xs text-muted-foreground">{a.pese.peseCodeResolved}</div>
                       </div>
-                      <div className="overflow-x-auto">
+                      <div className="overflow-x-auto scrollbar-thin">
                         <table className="w-full text-sm">
-                          <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
-                            <tr><th className="text-left px-4 py-2 font-medium">Ano</th><th className="text-right px-4 py-2 font-medium">PAN</th><th className="text-right px-4 py-2 font-medium">PESE</th><th className="text-right px-4 py-2 font-medium">Diferença</th><th className="text-center px-4 py-2 font-medium">Status</th></tr>
+                          <thead className="bg-primary/10 text-xs uppercase tracking-wider text-primary/80 sticky top-0">
+                            <tr><th className="text-left px-4 py-2.5 font-semibold">Ano</th><th className="text-right px-4 py-2.5 font-semibold">PAN</th><th className="text-right px-4 py-2.5 font-semibold">PESE</th><th className="text-right px-4 py-2.5 font-semibold">Diferença</th><th className="text-center px-4 py-2.5 font-semibold">Status</th></tr>
                           </thead>
                           <tbody>
-                            {a.pese.peseByYear.map((y) => {
+                            {a.pese.peseByYear.map((y, idx) => {
                               const noBudget = y.requested > 0 && y.available === 0;
                               return (
-                                <tr key={y.year} className={`border-t border-border/40 ${noBudget ? "bg-status-warn/5" : ""}`}>
-                                  <td className="px-4 py-2 font-medium">{y.year}</td>
-                                  <td className="px-4 py-2 text-right">{fmtBRL(y.requested)}</td>
-                                  <td className={`px-4 py-2 text-right ${noBudget ? "text-status-warn font-medium" : ""}`}>{noBudget ? "Sem orçamento" : fmtBRL(y.available)}</td>
-                                  <td className={`px-4 py-2 text-right font-medium ${y.ok ? "text-status-ok" : "text-status-warn"}`}>{y.diff >= 0 ? "+" : ""}{fmtBRL(y.diff)}</td>
-                                  <td className="px-4 py-2 text-center"><span className={`inline-block h-2 w-2 rounded-full ${y.ok ? "bg-status-ok" : "bg-status-warn"}`} /></td>
+                                <tr key={y.year} className={`border-t border-border/40 transition-colors ${noBudget ? "bg-status-warn/5" : idx % 2 === 1 ? "bg-muted/20" : ""}`}>
+                                  <td className="px-4 py-2.5 font-medium">{y.year}</td>
+                                  <td className="px-4 py-2.5 text-right tabular-nums">{fmtBRL(y.requested)}</td>
+                                  <td className={`px-4 py-2.5 text-right tabular-nums ${noBudget ? "text-status-warn font-medium" : ""}`}>{noBudget ? "Sem orçamento" : fmtBRL(y.available)}</td>
+                                  <td className={`px-4 py-2.5 text-right font-medium tabular-nums ${y.ok ? "text-status-ok" : "text-status-warn"}`}>{y.diff >= 0 ? "+" : ""}{fmtBRL(y.diff)}</td>
+                                  <td className="px-4 py-2.5 text-center"><span className={`inline-block h-2 w-2 rounded-full ${y.ok ? "bg-status-ok" : "bg-status-warn"}`} /></td>
                                 </tr>
                               );
                             })}
-                            <tr className="border-t border-border bg-muted/20 font-semibold">
-                              <td className="px-4 py-2">Total</td>
-                              <td className="px-4 py-2 text-right">{fmtBRL(a.pese.peseTotal.requested)}</td>
-                              <td className="px-4 py-2 text-right">{fmtBRL(a.pese.peseTotal.available)}</td>
-                              <td className={`px-4 py-2 text-right ${a.pese.peseTotal.ok ? "text-status-ok" : "text-status-warn"}`}>{a.pese.peseTotal.diff >= 0 ? "+" : ""}{fmtBRL(a.pese.peseTotal.diff)}</td>
+                            <tr className="border-t-2 border-border bg-primary/5 font-semibold">
+                              <td className="px-4 py-2.5">Total</td>
+                              <td className="px-4 py-2.5 text-right tabular-nums">{fmtBRL(a.pese.peseTotal.requested)}</td>
+                              <td className="px-4 py-2.5 text-right tabular-nums">{fmtBRL(a.pese.peseTotal.available)}</td>
+                              <td className={`px-4 py-2.5 text-right tabular-nums ${a.pese.peseTotal.ok ? "text-status-ok" : "text-status-warn"}`}>{a.pese.peseTotal.diff >= 0 ? "+" : ""}{fmtBRL(a.pese.peseTotal.diff)}</td>
                               <td />
                             </tr>
                           </tbody>
@@ -790,26 +843,26 @@ function PanCard({ a, db, peseDb, expanded, isSelected, onToggle, onSelect, onRe
                     <div className="text-sm font-medium">Detalhamento por ano</div>
                     <div className="text-xs text-muted-foreground">TP {tp || "—"}</div>
                   </div>
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto scrollbar-thin">
                     <table className="w-full text-sm">
-                      <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
-                        <tr><th className="text-left px-4 py-2 font-medium">Ano</th><th className="text-right px-4 py-2 font-medium">PAN</th><th className="text-right px-4 py-2 font-medium">Orçamento</th><th className="text-right px-4 py-2 font-medium">Diferença</th><th className="text-center px-4 py-2 font-medium">Status</th></tr>
+                      <thead className="bg-primary/10 text-xs uppercase tracking-wider text-primary/80 sticky top-0">
+                        <tr><th className="text-left px-4 py-2.5 font-semibold">Ano</th><th className="text-right px-4 py-2.5 font-semibold">PAN</th><th className="text-right px-4 py-2.5 font-semibold">Orçamento</th><th className="text-right px-4 py-2.5 font-semibold">Diferença</th><th className="text-center px-4 py-2.5 font-semibold">Status</th></tr>
                       </thead>
                       <tbody>
-                        {a.yearTotals.map((y) => (
-                          <tr key={y.year} className="border-t border-border/40">
-                            <td className="px-4 py-2 font-medium">{y.year}</td>
-                            <td className="px-4 py-2 text-right">{fmtBRL(y.requested)}</td>
-                            <td className="px-4 py-2 text-right">{fmtBRL(y.available)}</td>
-                            <td className={`px-4 py-2 text-right font-medium ${y.ok ? "text-status-ok" : "text-status-warn"}`}>{y.diff >= 0 ? "+" : ""}{fmtBRL(y.diff)}</td>
-                            <td className="px-4 py-2 text-center"><span className={`inline-block h-2 w-2 rounded-full ${y.ok ? "bg-status-ok" : "bg-status-warn"}`} /></td>
+                        {a.yearTotals.map((y, idx) => (
+                          <tr key={y.year} className={`border-t border-border/40 transition-colors ${idx % 2 === 1 ? "bg-muted/20" : ""}`}>
+                            <td className="px-4 py-2.5 font-medium">{y.year}</td>
+                            <td className="px-4 py-2.5 text-right tabular-nums">{fmtBRL(y.requested)}</td>
+                            <td className="px-4 py-2.5 text-right tabular-nums">{fmtBRL(y.available)}</td>
+                            <td className={`px-4 py-2.5 text-right font-medium tabular-nums ${y.ok ? "text-status-ok" : "text-status-warn"}`}>{y.diff >= 0 ? "+" : ""}{fmtBRL(y.diff)}</td>
+                            <td className="px-4 py-2.5 text-center"><span className={`inline-block h-2 w-2 rounded-full ${y.ok ? "bg-status-ok" : "bg-status-warn"}`} /></td>
                           </tr>
                         ))}
-                        <tr className="border-t border-border bg-muted/20 font-semibold">
-                          <td className="px-4 py-2">Total</td>
-                          <td className="px-4 py-2 text-right">{fmtBRL(a.totalRequested)}</td>
-                          <td className="px-4 py-2 text-right">{fmtBRL(a.totalAvailable)}</td>
-                          <td className={`px-4 py-2 text-right ${a.totalAvailable - a.totalRequested >= 0 ? "text-status-ok" : "text-status-warn"}`}>{a.totalAvailable - a.totalRequested >= 0 ? "+" : ""}{fmtBRL(a.totalAvailable - a.totalRequested)}</td>
+                        <tr className="border-t-2 border-border bg-primary/5 font-semibold">
+                          <td className="px-4 py-2.5">Total</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums">{fmtBRL(a.totalRequested)}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums">{fmtBRL(a.totalAvailable)}</td>
+                          <td className={`px-4 py-2.5 text-right tabular-nums ${a.totalAvailable - a.totalRequested >= 0 ? "text-status-ok" : "text-status-warn"}`}>{a.totalAvailable - a.totalRequested >= 0 ? "+" : ""}{fmtBRL(a.totalAvailable - a.totalRequested)}</td>
                           <td />
                         </tr>
                       </tbody>
@@ -833,9 +886,9 @@ function PanCard({ a, db, peseDb, expanded, isSelected, onToggle, onSelect, onRe
                             <div className="text-xs text-muted-foreground mt-0.5">{action}</div>
                           </div>
                           <div className="flex items-center gap-4">
-                            <div className="text-right text-sm"><div className="text-xs text-muted-foreground">Pedido</div><div>{fmtBRL(r.requested)}</div></div>
-                            <div className="text-right text-sm"><div className="text-xs text-muted-foreground">Disponível</div><div>{fmtBRL(r.available)}</div></div>
-                            <div className="text-right text-sm"><div className="text-xs text-muted-foreground">Diferença</div><div className={r.ok ? "text-status-ok font-medium" : "text-status-warn font-medium"}>{r.diff >= 0 ? "+" : ""}{fmtBRL(r.diff)}</div></div>
+                            <div className="text-right text-sm"><div className="text-xs text-muted-foreground">Pedido</div><div className="tabular-nums">{fmtBRL(r.requested)}</div></div>
+                            <div className="text-right text-sm"><div className="text-xs text-muted-foreground">Disponível</div><div className="tabular-nums">{fmtBRL(r.available)}</div></div>
+                            <div className="text-right text-sm"><div className="text-xs text-muted-foreground">Diferença</div><div className={`tabular-nums ${r.ok ? "text-status-ok font-medium" : "text-status-warn font-medium"}`}>{r.diff >= 0 ? "+" : ""}{fmtBRL(r.diff)}</div></div>
                             <Select value={r.empresaCode ?? ""} onValueChange={(v) => onEmpresaChange(r.empresaPan, v)}>
                               <SelectTrigger className="w-32 h-8"><SelectValue placeholder="Código" /></SelectTrigger>
                               <SelectContent>{db.empresas.map((e) => <SelectItem key={e} value={e}>{e}</SelectItem>)}</SelectContent>
@@ -923,8 +976,8 @@ function YearDetailCard({ year, empresaPan, empresaCode, empresaValor, tp }: { y
         <span className={`h-3 w-3 rounded-full ${dotClass}`} />
       </div>
       <div className="space-y-2">
-        <div className="flex justify-between items-center"><span className="text-sm text-muted-foreground">Orçamento</span><span className="text-sm font-semibold">{fmtBRL(year.available)}</span></div>
-        <div className="flex justify-between items-center"><span className="text-sm text-muted-foreground">Diferença</span><span className={`text-sm font-bold ${year.ok ? "text-status-ok" : "text-status-warn"}`}>{year.diff >= 0 ? "+" : ""}{fmtBRL(year.diff)}</span></div>
+        <div className="flex justify-between items-center"><span className="text-sm text-muted-foreground">Orçamento</span><span className="text-sm font-semibold tabular-nums">{fmtBRL(year.available)}</span></div>
+        <div className="flex justify-between items-center"><span className="text-sm text-muted-foreground">Diferença</span><span className={`text-sm font-bold tabular-nums ${year.ok ? "text-status-ok" : "text-status-warn"}`}>{year.diff >= 0 ? "+" : ""}{fmtBRL(year.diff)}</span></div>
       </div>
       <AnimatePresence>
         {showCalc && (
