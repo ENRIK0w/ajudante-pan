@@ -60,9 +60,11 @@ export function xlsxHeaderStyle(fill: string): object {
 
 // Default data-cell xlsx style (number format only). Fresh object per call.
 export function xlsxDataStyle(col: ExportColumn): object {
-  if (col.kind === "currency") return { numFmt: "#,##0" };
-  if (col.kind === "percent")  return { numFmt: "0%" };
-  return {};
+  // Fresh alignment object per call — default all data cells to centered.
+  const alignment = { horizontal: "center", vertical: "center" };
+  if (col.kind === "currency") return { numFmt: "#,##0", alignment };
+  if (col.kind === "percent")  return { numFmt: "0%", alignment };
+  return { alignment };
 }
 
 export function statusFill(a: AnalyzedPan): string {

@@ -22,7 +22,7 @@ const SELECTABLE_COLS = EXPORT_COLUMNS.filter((c) => !SEPARATOR_COLS.has(c.index
 
 // Translate schema + override into inline CSS for the WYSIWYG cell.
 function cellCss(defaultFill: string, ov?: CellStyle): React.CSSProperties {
-  const css: React.CSSProperties = {};
+  const css: React.CSSProperties = { textAlign: "center" };
   if (defaultFill) {
     css.background = `#${defaultFill}`;
     css.color = "#fff";

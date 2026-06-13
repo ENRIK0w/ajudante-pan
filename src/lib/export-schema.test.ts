@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   EXPORT_COLUMNS, CURRENCY_COLS, PERCENT_COLS, SEPARATOR_COLS, STATUS_COL,
-  buildRow, statusFill,
+  buildRow, statusFill, xlsxDataStyle,
 } from "./export-schema";
 import type { AnalyzedPan } from "./analyze";
 
@@ -74,5 +74,14 @@ describe("export-schema", () => {
     expect(row[7]).toBe("PESE");      // BAR/BRR column
     expect(row[8]).toBe("PMT_123");   // Linha Orçamento = resolved PESE code
     expect(row[9]).toBe(1500);        // orc2026 from pese.peseByYear
+  });
+  it("xlsxDataStyle centers every data cell by default and keeps numFmt", () => {
+    const centered = { horizontal: "center", vertical: "center" };
+    const currency = EXPORT_COLUMNS.find((c) => c.kind === "currency")!;
+    const percent = EXPORT_COLUMNS.find((c) => c.kind === "percent")!;
+    const text = EXPORT_COLUMNS.find((c) => c.kind === "text")!;
+    expect(xlsxDataStyle(currency)).toEqual({ numFmt: "#,##0", alignment: centered });
+    expect(xlsxDataStyle(percent)).toEqual({ numFmt: "0%", alignment: centered });
+    expect(xlsxDataStyle(text)).toEqual({ alignment: centered });
   });
 });

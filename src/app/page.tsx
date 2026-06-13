@@ -256,9 +256,9 @@ export default function Page() {
           } else if (CURRENCY_COLS.has(c) || PERCENT_COLS.has(c)) {
             ws[ref] = { v: (val ?? 0) as number, t: "n", s: mergeStyle(xlsxDataStyle(col), ov) };
           } else if (typeof val === "number") {
-            ws[ref] = { v: val, t: "n", s: mergeStyle({}, ov) };
+            ws[ref] = { v: val, t: "n", s: mergeStyle(xlsxDataStyle(col), ov) };
           } else {
-            ws[ref] = { v: (val ?? "") as string, t: "s", s: mergeStyle({}, ov) };
+            ws[ref] = { v: (val ?? "") as string, t: "s", s: mergeStyle(xlsxDataStyle(col), ov) };
           }
         });
       });
