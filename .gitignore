@@ -17,6 +17,9 @@ dist-ssr
 .next
 *.local
 
+# TypeScript incremental build cache
+*.tsbuildinfo
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars

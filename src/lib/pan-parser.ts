@@ -19,7 +19,7 @@ export interface PanData {
   rawText: string;
 }
 
-const parseBR = (s: string): number => {
+export const parseBR = (s: string): number => {
   const cleaned = s.replace(/[R$\s.]/g, "").replace(",", ".");
   const n = parseFloat(cleaned);
   return isNaN(n) ? 0 : n;
