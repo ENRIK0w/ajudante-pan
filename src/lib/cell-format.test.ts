@@ -39,4 +39,14 @@ describe("cell-format", () => {
     const base = { numFmt: "0%" };
     expect(mergeStyle(base, undefined)).toEqual({ numFmt: "0%" });
   });
+  it("mergeStyle writes bold:false through (does not skip it)", () => {
+    const out = mergeStyle({ numFmt: "#,##0" }, { bold: false });
+    expect(out).toEqual({ numFmt: "#,##0", font: { bold: false } });
+  });
+  it("applyStyle does not mutate the input map", () => {
+    const original: FormatMap = { "data:a.pdf:3": { bold: true } };
+    const next = applyStyle(original, ["data:a.pdf:3"], { italic: true });
+    expect(original["data:a.pdf:3"]).toEqual({ bold: true });
+    expect(next["data:a.pdf:3"]).toEqual({ bold: true, italic: true });
+  });
 });
