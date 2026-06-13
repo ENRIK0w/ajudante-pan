@@ -65,6 +65,7 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { ExportDock } from "@/components/export/export-dock";
+import { ExportPreview } from "@/components/export/export-preview";
 import XLSX from "xlsx-js-style";
 
 const fmtBRL = (n: number) =>
@@ -102,6 +103,7 @@ export default function Page() {
   const [exporting, setExporting] = useState(false);
   const [statusOverrides, setStatusOverrides] = useState<Record<string, StatusOverride>>({});
   const [dragOver, setDragOver] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -569,10 +571,19 @@ export default function Page() {
           onClear={clearTrayState}
           onAddApproved={addAllApproved}
           onAddAll={addAll}
-          onPreview={() => exportToExcel(orderedSelection)}
+          onPreview={() => setPreviewOpen(true)}
           exporting={exporting}
         />
       )}
+      <ExportPreview
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        ordered={orderedSelection}
+        exporting={exporting}
+        onExport={async (formatMap) => {
+          await exportToExcel(orderedSelection, formatMap);
+        }}
+      />
     </DndContext>
   );
 }

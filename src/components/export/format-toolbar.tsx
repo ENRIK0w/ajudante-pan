@@ -96,7 +96,7 @@ export function FormatToolbar({
           max={48}
           defaultValue={11}
           disabled={disabled}
-          onChange={(e) => onApply({ fontSize: Number(e.target.value) })}
+          onBlur={(e) => onApply({ fontSize: Number(e.target.value) })}
           className="w-14 rounded border border-border bg-background px-1 py-0.5 text-sm"
         />
       </label>
