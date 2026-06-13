@@ -51,4 +51,28 @@ describe("export-schema", () => {
     expect(statusFill(sample({ manualStatus: "negado" }))).toBe("FF6B6B");
     expect(statusFill(sample({ status: "unknown" }))).toBe("D3D3D3");
   });
+  it("buildRow uses the PESE/Turn-Key branch", () => {
+    const tk = {
+      pan: {
+        fileName: "tk.pdf", panNumber: "2002", titulo: "Obra TK",
+        isTurnKey: true, percentualCapex: 100,
+        fluxoCaixa: [{ ano: 2026, valor: 2000 }],
+      },
+      tpResolved: "29C",
+      years: ["2026"],
+      rows: [],
+      totalRequested: 0, totalAvailable: 0,
+      yearTotals: [],
+      status: "ok",
+      pese: {
+        peseCodeResolved: "PMT_123",
+        peseByYear: [{ year: "2026", requested: 0, available: 1500, diff: 0, ok: true }],
+      },
+    } as unknown as import("./analyze").AnalyzedPan;
+    const row = buildRow(tk);
+    expect(row[0]).toBe("TK");        // categoria
+    expect(row[7]).toBe("PESE");      // BAR/BRR column
+    expect(row[8]).toBe("PMT_123");   // Linha Orçamento = resolved PESE code
+    expect(row[9]).toBe(1500);        // orc2026 from pese.peseByYear
+  });
 });

@@ -42,6 +42,11 @@ export const CURRENCY_COLS  = new Set(EXPORT_COLUMNS.filter((c) => c.kind === "c
 export const PERCENT_COLS   = new Set(EXPORT_COLUMNS.filter((c) => c.kind === "percent").map((c) => c.index));
 export const STATUS_COL = 20;
 
+// Sanity guard: STATUS_COL must point at the status column.
+if (EXPORT_COLUMNS[STATUS_COL]?.kind !== "status") {
+  throw new Error("export-schema: STATUS_COL index is out of sync with EXPORT_COLUMNS");
+}
+
 // xlsx-js-style header style. A fresh object per call so xlsx's _addFill cannot
 // mutate a shared reference and corrupt sibling cells.
 export function xlsxHeaderStyle(fill: string): object {
