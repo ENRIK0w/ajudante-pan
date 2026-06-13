@@ -54,6 +54,7 @@ import {
   statusFill,
   buildRow,
 } from "@/lib/export-schema";
+import { mergeStyle, cellKey, HEADER_ROW, type FormatMap } from "@/lib/cell-format";
 import { orderedApproved, allFileNames, reorderTray } from "@/lib/export-tray";
 import {
   DndContext,
@@ -216,7 +217,7 @@ export default function Page() {
     }
   };
 
-  const exportToExcel = async (ordered: AnalyzedPan[]) => {
+  const exportToExcel = async (ordered: AnalyzedPan[], formatMap: FormatMap = {}) => {
     if (ordered.length === 0) return;
     setExporting(true);
     try {
@@ -226,7 +227,9 @@ export default function Page() {
       // Header row
       EXPORT_COLUMNS.forEach((col) => {
         const ref = XLSX.utils.encode_cell({ r: 0, c: col.index });
-        ws[ref] = { v: col.header, t: col.header === "" ? "z" : "s", s: xlsxHeaderStyle(col.fill) };
+        const base = xlsxHeaderStyle(col.fill);
+        const s = mergeStyle(base, formatMap[cellKey(HEADER_ROW, col.index)]);
+        ws[ref] = { v: col.header, t: col.header === "" ? "z" : "s", s };
       });
 
       // Data rows
@@ -236,21 +239,19 @@ export default function Page() {
           const c = col.index;
           const val = values[c];
           const ref = XLSX.utils.encode_cell({ r: rowIdx + 1, c });
+          const ov = formatMap[cellKey(a.pan.fileName, c)];
 
           if (SEPARATOR_COLS.has(c)) {
             ws[ref] = { v: "", t: "z", s: {} };
           } else if (c === STATUS_COL) {
-            ws[ref] = {
-              v: "",
-              t: "s",
-              s: { fill: { patternType: "solid", fgColor: { rgb: statusFill(a) } } },
-            };
+            const base = { fill: { patternType: "solid", fgColor: { rgb: statusFill(a) } } };
+            ws[ref] = { v: "", t: "s", s: mergeStyle(base, ov) };
           } else if (CURRENCY_COLS.has(c) || PERCENT_COLS.has(c)) {
-            ws[ref] = { v: (val ?? 0) as number, t: "n", s: xlsxDataStyle(col) };
+            ws[ref] = { v: (val ?? 0) as number, t: "n", s: mergeStyle(xlsxDataStyle(col), ov) };
           } else if (typeof val === "number") {
-            ws[ref] = { v: val, t: "n", s: {} };
+            ws[ref] = { v: val, t: "n", s: mergeStyle({}, ov) };
           } else {
-            ws[ref] = { v: (val ?? "") as string, t: "s", s: {} };
+            ws[ref] = { v: (val ?? "") as string, t: "s", s: mergeStyle({}, ov) };
           }
         });
       });
