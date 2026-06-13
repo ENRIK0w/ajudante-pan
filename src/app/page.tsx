@@ -201,12 +201,17 @@ export default function Page() {
 
   const handleDragEnd = (e: DragEndEvent) => {
     const activeId = String(e.active.id);
-    if (e.over?.id === "export-dock") {
-      setTray((prev) => (prev.includes(activeId) ? prev : [...prev, activeId]));
+    const overId = e.over ? String(e.over.id) : null;
+    if (!overId) return;
+    if (!tray.includes(activeId)) {
+      // A PAN card dragged into the dock — dropped on the container or on any chip.
+      if (overId === "export-dock" || tray.includes(overId)) {
+        setTray((prev) => (prev.includes(activeId) ? prev : [...prev, activeId]));
+      }
       return;
     }
-    const overId = e.over ? String(e.over.id) : null;
-    if (overId && overId !== activeId && tray.includes(activeId) && tray.includes(overId)) {
+    // Reorder within the tray.
+    if (overId !== activeId && tray.includes(overId)) {
       setTray((prev) => reorderTray(prev, prev.indexOf(activeId), prev.indexOf(overId)));
     }
   };
