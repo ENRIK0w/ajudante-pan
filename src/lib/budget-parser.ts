@@ -386,3 +386,168 @@ export function matchPeseCode(
 
   return null;
 }
+
+// TI (IT) database interfaces
+export interface TiRow {
+  empresa: string;
+  tp: string;
+  descricaoTp: string;
+  programaOrcamentario: string;
+  descricaoProjeto: string;
+  years: Record<string, number>;
+  total: number;
+}
+
+export interface TiDb {
+  rows: TiRow[];
+  empresas: string[];
+  tps: string[];
+  programas: string[];
+  years: string[];
+}
+
+export function parseTiBuffer(buf: ArrayBuffer): TiDb {
+  const wb = XLSX.read(buf, { type: "array" });
+  const wantedYears = ["2026", "2027", "2028", "2029", "2030"];
+
+  const allRows: TiRow[] = [];
+  const empresasSet = new Set<string>();
+  const tpsSet = new Set<string>();
+  const programasSet = new Set<string>();
+  const yearsFound = new Set<string>();
+
+  for (const sheetName of wb.SheetNames) {
+    const ws = wb.Sheets[sheetName];
+    if (!ws) continue;
+    const json: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+    // Find header row: first row (within first 5) where col 0 === "EMPRESA"
+    let headerIdx = -1;
+    for (let i = 0; i < Math.min(5, json.length); i++) {
+      const r = json[i];
+      if (r && String(r[0] ?? "").trim() === "EMPRESA") {
+        headerIdx = i;
+        break;
+      }
+    }
+    if (headerIdx === -1) continue;
+
+    const header = json[headerIdx].map((h: any) => String(h ?? "").trim());
+
+    // Year columns: first occurrence of each year to avoid duplicate year columns
+    const yearCols: { idx: number; year: string }[] = [];
+    const seenYears = new Set<string>();
+    header.forEach((h: string, i: number) => {
+      if (wantedYears.includes(h) && !seenYears.has(h)) {
+        yearCols.push({ idx: i, year: h });
+        seenYears.add(h);
+        yearsFound.add(h);
+      }
+    });
+
+    // Description column: first col >= 8 matching "DESCR" but not "DESCRIÇÃO TP"
+    const descrColIdx = header.findIndex(
+      (h, i) => i >= 8 && /DESCR/i.test(h) && !/DESCRI[CÇ][AÃ]O\s*TP/i.test(h),
+    );
+
+    // Total column: first col after the last year col containing "TOTAL"
+    const lastYearColIdx = yearCols.length > 0 ? Math.max(...yearCols.map((y) => y.idx)) : 0;
+    const totalColIdx = header.findIndex((h, i) => i > lastYearColIdx && /TOTAL/i.test(h));
+
+    for (let i = headerIdx + 1; i < json.length; i++) {
+      const r = json[i];
+      if (!r || r.length === 0) continue;
+      const empresa = String(r[0] ?? "").trim();
+      const tp = String(r[2] ?? "").trim();
+      const descricaoTp = String(r[3] ?? "").trim();
+      const programaOrcamentario = String(r[7] ?? "").trim();
+      const descricaoProjeto = descrColIdx >= 0 ? String(r[descrColIdx] ?? "").trim() : "";
+      if (!empresa || !programaOrcamentario) continue;
+      const years: Record<string, number> = {};
+      for (const { idx, year } of yearCols) {
+        years[year] = Number(r[idx]) || 0;
+      }
+      const yearSum = Object.values(years).reduce((a, b) => a + b, 0);
+      const total = totalColIdx >= 0 ? (Number(r[totalColIdx]) || yearSum) : yearSum;
+      allRows.push({ empresa, tp, descricaoTp, programaOrcamentario, descricaoProjeto, years, total });
+      empresasSet.add(empresa);
+      if (tp) tpsSet.add(tp);
+      programasSet.add(programaOrcamentario);
+    }
+  }
+
+  return {
+    rows: allRows,
+    empresas: Array.from(empresasSet).sort(),
+    tps: Array.from(tpsSet).sort(),
+    programas: Array.from(programasSet).sort(),
+    years: wantedYears.filter((y) => yearsFound.has(y)),
+  };
+}
+
+export async function loadTiFromUrl(url: string): Promise<TiDb> {
+  const res = await fetch(url);
+  const buf = await res.arrayBuffer();
+  return parseTiBuffer(buf);
+}
+
+export function lookupTiByYear(
+  db: TiDb,
+  empresa: string,
+  tp: string,
+  programa: string,
+): Record<string, number> {
+  const row = db.rows.find(
+    (r) =>
+      r.empresa === empresa &&
+      r.tp === tp &&
+      r.programaOrcamentario === programa,
+  );
+  return row ? row.years : {};
+}
+
+export function getTiOptions(db: TiDb, empresa: string, tp: string): TiRow[] {
+  return db.rows.filter((r) => r.empresa === empresa && r.tp === tp);
+}
+
+export function matchTiPrograma(
+  panPrograma: string | undefined,
+  options: TiRow[],
+): string | null {
+  // 1) Single option → return it
+  if (options.length === 1) return options[0].programaOrcamentario;
+
+  if (panPrograma) {
+    const target = panPrograma.toUpperCase().trim();
+    if (target) {
+      // 2a) Exact match (case-insensitive)
+      let hit = options.find(
+        (o) => o.programaOrcamentario.toUpperCase().trim() === target,
+      );
+      if (hit) return hit.programaOrcamentario;
+
+      // 2b) Substring match (either contains the other)
+      hit = options.find((o) => {
+        const p = o.programaOrcamentario.toUpperCase().trim();
+        return p.includes(target) || target.includes(p);
+      });
+      if (hit) return hit.programaOrcamentario;
+    }
+  }
+
+  return null;
+}
+
+// Match by DESCR. OBRA / PROJETO / EQUIPAMENTO against descricaoProjeto in TiRow.
+// Returns the programaOrcamentario key for the matched row, or null.
+export function matchTiDescricao(panDescricao: string | undefined, options: TiRow[]): string | null {
+  if (options.length === 1) return options[0].programaOrcamentario;
+  if (!panDescricao) return null;
+  const target = panDescricao.toUpperCase().trim();
+  if (!target) return null;
+  let hit = options.find((o) => {
+    const d = o.descricaoProjeto.toUpperCase().trim();
+    return d && (d === target || d.includes(target) || target.includes(d));
+  });
+  return hit?.programaOrcamentario ?? null;
+}

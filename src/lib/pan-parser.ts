@@ -11,6 +11,9 @@ export interface PanData {
   tp?: string;
   isTurnKey?: boolean;
   peseCode?: string;
+  isTi?: boolean;
+  tiCategory?: string;
+  descricaoObra?: string;
   rateio: { empresa: string; valor: number }[];
   fluxoCaixa: { ano: number; valor: number }[];
   rawText: string;
@@ -131,6 +134,33 @@ export async function parsePanPdf(file: File): Promise<PanData> {
   // Look for "TK", "Turn Key", "Turn-Key", or "Turnkey" in the text
   const tkMatch = text.match(/\b(TK|Turn[\s-]?Key|Turnkey)\b/i);
   data.isTurnKey = !!tkMatch;
+
+  // TI detection — only by TP code (79=Software, 2G=PIC, 2E=Cybersecurity, 2F=Investimento, 80=Hardware)
+  const tiTpMatch = /^(79|2G|2E|2F|80)\b/i.test((data.tp ?? "").trim());
+  data.isTi = tiTpMatch;
+  if (data.isTi) {
+    const tp = (data.tp ?? "").trim().toUpperCase();
+    if (tp === "79") data.tiCategory = "Software";
+    else if (tp === "2G") data.tiCategory = "PIC";
+    else if (tp === "2E") data.tiCategory = "Cybersecurity";
+    else if (tp === "2F") data.tiCategory = "Investimento";
+    else if (tp === "80") data.tiCategory = "Hardware";
+    else data.tiCategory = "TI";
+  }
+
+  // Extract DESCR. OBRA / PROJETO / EQUIPAMENTO for TI PANs
+  // 1) Explicit "Linha orçamentária:" label in the PDF
+  const linhaMatch = text.match(/Linha\s+or[çc]ament[áa]ria:?\s*([^\n]{3,})/i);
+  if (linhaMatch) {
+    data.descricaoObra = linhaMatch[1].trim();
+  } else if (data.programaOrcamentario) {
+    // 2) Text after "TP CODIGO [- description]" in the programa line
+    const parts = data.programaOrcamentario.split(/\s+/);
+    if (parts.length > 2) {
+      const rest = parts.slice(2).join(" ").replace(/^[-–:]\s*/, "").trim();
+      if (rest.length > 3) data.descricaoObra = rest;
+    }
+  }
 
   // Extract PESE code from the CAPEX section
   // Look for the line "Em caso de CAPEX, fazer uma conta resumo orçado x contratação"

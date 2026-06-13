@@ -18,6 +18,7 @@ import {
   Square,
   FolderOpen,
   HelpCircle,
+  Monitor,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -37,14 +38,21 @@ import {
   loadBudgetFromUrl,
   loadCnpjFromUrl,
   loadPeseFromUrl,
+  loadTiFromUrl,
   lookupBudgetByYear,
   lookupPeseByYear,
+  lookupTiByYear,
+  getTiOptions,
+  matchTiPrograma,
+  matchTiDescricao,
   matchEmpresaCode,
   matchTpCode,
   matchPeseCode,
   type BudgetDb,
   type CnpjEntry,
   type PeseDb,
+  type TiDb,
+  type TiRow,
 } from "@/lib/budget-parser";
 import XLSX from "xlsx-js-style";
 
@@ -88,6 +96,8 @@ interface AnalyzedPan {
     diff: number;
     ok: boolean;
     byYear: YearCell[];
+    tiPrograma?: string | null;
+    tiProgramaOptions?: TiRow[];
   }[];
   totalRequested: number;
   totalAvailable: number;
@@ -103,7 +113,8 @@ export default function Page() {
   const [peseDb, setPeseDb] = useState<PeseDb | null>(null);
   const [loadingBase, setLoadingBase] = useState(true);
   const [pans, setPans] = useState<PanData[]>([]);
-  const [overrides, setOverrides] = useState<Record<string, { tp?: string; empresas?: Record<string, string>; peseCode?: string }>>({});
+  const [tiDb, setTiDb] = useState<TiDb | null>(null);
+  const [overrides, setOverrides] = useState<Record<string, { tp?: string; empresas?: Record<string, string>; peseCode?: string; tiProgramas?: Record<string, string> }>>({});
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -115,14 +126,16 @@ export default function Page() {
   useEffect(() => {
     (async () => {
       try {
-        const [b, c, p] = await Promise.all([
+        const [b, c, p, t] = await Promise.all([
           loadBudgetFromUrl("/orcamento.xlsx"),
           loadCnpjFromUrl("/cnpj.xlsx"),
           loadPeseFromUrl("/base pese.xlsx"),
+          loadTiFromUrl("/TI.xlsx"),
         ]);
         setDb(b);
         setCnpj(c);
         setPeseDb(p);
+        setTiDb(t);
       } catch (e) {
         setError("Falha ao carregar base: " + (e as Error).message);
       } finally {
@@ -154,28 +167,43 @@ export default function Page() {
     return pans.map((pan) => {
       const key = pan.fileName;
       const ov = overrides[key] ?? {};
-      const autoTp = pan.tp ? matchTpCode(pan.tp, db) : null;
+      const isTiPan = pan.isTi && !!tiDb;
+      const autoTp = pan.tp
+        ? (isTiPan ? matchTpCode(pan.tp, { tps: tiDb!.tps } as BudgetDb) : matchTpCode(pan.tp, db))
+        : null;
       const tp = ov.tp ?? autoTp ?? "";
       const capex = (pan.percentualCapex ?? 100) / 100;
       const flow = pan.fluxoCaixa.filter((f) => f.valor > 0);
       const panYears = flow.map((f) => String(f.ano));
-      const years = Array.from(new Set([...panYears, ...db.years])).sort();
+      const years = Array.from(new Set([...panYears, ...(isTiPan ? tiDb!.years : db.years)])).sort();
       const reqByYear: Record<string, number> = {};
       const totalPan = flow.reduce((a, b) => a + b.valor, 0);
       for (const f of flow) reqByYear[String(f.ano)] = f.valor * capex;
       const rows = pan.rateio.map((r) => {
         const codeOverride = ov.empresas?.[r.empresa];
-        const code = codeOverride ?? matchEmpresaCode(r.empresa, cnpj, db);
+        const code = codeOverride ?? matchEmpresaCode(r.empresa, cnpj, isTiPan ? { empresas: tiDb!.empresas } as BudgetDb : db);
         const share = totalPan > 0 ? r.valor / totalPan : 0;
         const requested = r.valor * capex;
-        const avByYear = code && tp ? lookupBudgetByYear(db, code, tp) : {};
+        let avByYear: Record<string, number> = {};
+        let tiPrograma: string | null = null;
+        let tiProgramaOptions: TiRow[] = [];
+        if (isTiPan && tiDb) {
+          tiProgramaOptions = code ? getTiOptions(tiDb, code, tp) : [];
+          const programaOverride = ov.tiProgramas?.[code ?? ""];
+          tiPrograma = programaOverride
+            ?? matchTiPrograma(pan.programaOrcamentario, tiProgramaOptions)
+            ?? matchTiDescricao(pan.descricaoObra, tiProgramaOptions);
+          avByYear = code && tp && tiPrograma ? lookupTiByYear(tiDb, code, tp, tiPrograma) : {};
+        } else if (!pan.isTurnKey) {
+          avByYear = code && tp ? lookupBudgetByYear(db, code, tp) : {};
+        }
         const byYear: YearCell[] = years.map((y) => {
           const req = (reqByYear[y] ?? 0) * share;
           const av = avByYear[y] ?? 0;
           return { year: y, requested: req, available: av, diff: av - req, ok: req <= av };
         });
         const available = byYear.reduce((a, b) => a + b.available, 0);
-        const ok = !!code && byYear.every((y) => y.ok);
+        const ok = !!code && (isTiPan ? !!tiPrograma : true) && byYear.every((y) => y.ok);
         return {
           empresaPan: r.empresa,
           empresaCode: code,
@@ -184,6 +212,8 @@ export default function Page() {
           diff: available - requested,
           ok,
           byYear,
+          tiPrograma,
+          tiProgramaOptions,
         };
       });
       const totalRequested = rows.reduce((a, b) => a + b.requested, 0);
@@ -232,6 +262,13 @@ export default function Page() {
             status = "ok";
           }
         }
+      } else if (isTiPan) {
+        const hasUnknown = rows.some((r) => !r.empresaCode || !r.tiPrograma) || !tp;
+        status = hasUnknown
+          ? "unknown"
+          : rows.every((r) => r.ok)
+            ? "ok"
+            : "warn";
       } else {
         const hasUnknown = rows.some((r) => !r.empresaCode) || !tp;
         status = hasUnknown
@@ -255,7 +292,7 @@ export default function Page() {
         manualStatus: statusOverrides[pan.fileName] as "aprovado" | "negado" | "warn" | undefined,
       };
     });
-  }, [pans, db, cnpj, peseDb, overrides, statusOverrides]);
+  }, [pans, db, cnpj, peseDb, tiDb, overrides, statusOverrides]);
 
   const summary = useMemo(() => {
     const effective = (a: AnalyzedPan) => a.manualStatus ?? a.status;
@@ -488,9 +525,9 @@ export default function Page() {
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <div className={`h-2 w-2 rounded-full shrink-0 ${loadingBase ? "bg-muted-foreground animate-pulse" : db && cnpj && peseDb ? "bg-status-ok animate-pulse" : "bg-destructive"}`} />
+            <div className={`h-2 w-2 rounded-full shrink-0 ${loadingBase ? "bg-muted-foreground animate-pulse" : db && cnpj && peseDb && tiDb ? "bg-status-ok animate-pulse" : db && cnpj && peseDb ? "bg-status-warn animate-pulse" : "bg-destructive"}`} />
             <span className="hidden sm:inline">
-              {loadingBase ? "Carregando base..." : db && cnpj && peseDb ? "Base carregada" : "Erro na base"}
+              {loadingBase ? "Carregando base..." : db && cnpj && peseDb && tiDb ? "Base carregada" : db && cnpj && peseDb ? "Base parcial (sem TI)" : "Erro na base"}
             </span>
           </div>
           <ThemeToggle />
@@ -593,7 +630,7 @@ export default function Page() {
                   {analyzed.map((a, i) => (
                     <motion.div key={a.pan.fileName + i} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.98 }} transition={{ delay: i * 0.04, duration: 0.25 }} whileHover={{ y: -1 }}>
                       <PanCard
-                        a={a} db={db!} peseDb={peseDb}
+                        a={a} db={db!} peseDb={peseDb} tiDb={tiDb}
                         expanded={expanded.has(a.pan.fileName)}
                         isSelected={selected.has(a.pan.fileName)}
                         onToggle={() => toggleExpand(a.pan.fileName)}
@@ -605,6 +642,10 @@ export default function Page() {
                           setOverrides({ ...overrides, [a.pan.fileName]: { ...cur, empresas: { ...(cur.empresas ?? {}), [panName]: code } } });
                         }}
                         onPeseCodeChange={(peseCode) => setOverrides({ ...overrides, [a.pan.fileName]: { ...overrides[a.pan.fileName], peseCode } })}
+                        onTiProgramaChange={(empresaCode, programa) => {
+                          const cur = overrides[a.pan.fileName] ?? {};
+                          setOverrides({ ...overrides, [a.pan.fileName]: { ...cur, tiProgramas: { ...(cur.tiProgramas ?? {}), [empresaCode]: programa } } });
+                        }}
                         onStatusChange={(status) => {
                           if (status === null) {
                             const next = { ...statusOverrides };
@@ -673,12 +714,13 @@ function StatCard({ label, value, icon, accent, tip }: { label: string; value: s
   );
 }
 
-function PanCard({ a, db, peseDb, expanded, isSelected, onToggle, onSelect, onRemove, onTpChange, onEmpresaChange, onPeseCodeChange, onStatusChange }: {
-  a: AnalyzedPan; db: BudgetDb; peseDb: PeseDb | null;
+function PanCard({ a, db, peseDb, tiDb, expanded, isSelected, onToggle, onSelect, onRemove, onTpChange, onEmpresaChange, onPeseCodeChange, onStatusChange, onTiProgramaChange }: {
+  a: AnalyzedPan; db: BudgetDb; peseDb: PeseDb | null; tiDb: TiDb | null;
   expanded: boolean; isSelected: boolean;
   onToggle: () => void; onSelect: () => void; onRemove: () => void;
   onTpChange: (tp: string) => void; onEmpresaChange: (panName: string, code: string) => void; onPeseCodeChange: (peseCode: string) => void;
   onStatusChange: (status: "aprovado" | "negado" | "warn" | null) => void;
+  onTiProgramaChange: (empresaCode: string, programa: string) => void;
 }) {
   const effectiveStatus = a.manualStatus ?? a.status;
   const statusConfig = {
@@ -707,6 +749,7 @@ function PanCard({ a, db, peseDb, expanded, isSelected, onToggle, onSelect, onRe
               <Badge variant="outline" className="text-xs">TP {tpBadgeLabel}</Badge>
               <Badge variant="outline" className="text-xs">CAPEX {a.pan.percentualCapex ?? 100}%</Badge>
               {a.pan.isTurnKey && <Badge variant="outline" className="text-xs border border-primary/30 bg-primary/15 text-primary inline-flex items-center gap-1"><Wrench className="h-3 w-3" />Turn Key</Badge>}
+              {a.pan.isTi && <Badge variant="outline" className="text-xs border border-blue-500/30 bg-blue-500/15 text-blue-600 dark:text-blue-400 inline-flex items-center gap-1"><Monitor className="h-3 w-3" />TI{a.pan.tiCategory ? ` · ${a.pan.tiCategory}` : ""}</Badge>}
               <Badge variant="outline" className={`text-xs border ${statusConfig.cls} inline-flex items-center gap-1`}>
                 {(effectiveStatus === "ok" || effectiveStatus === "aprovado") ? <CheckCircle2 className="h-3 w-3" /> : effectiveStatus === "warn" ? <AlertTriangle className="h-3 w-3" /> : effectiveStatus === "negado" ? <X className="h-3 w-3" /> : <HelpCircle className="h-3 w-3" />}
                 {statusConfig.label}
@@ -752,7 +795,7 @@ function PanCard({ a, db, peseDb, expanded, isSelected, onToggle, onSelect, onRe
         {expanded && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden border-t border-border/60">
             <div className="p-5 space-y-5 bg-muted/20">
-              {!a.pan.isTurnKey && (
+              {!a.pan.isTurnKey && !a.pan.isTi && (
                 <div className="flex items-center gap-3 flex-wrap">
                   <span className="text-sm text-muted-foreground">Programa orçamentário (TP):</span>
                   <Select value={tp} onValueChange={onTpChange}>
@@ -760,6 +803,30 @@ function PanCard({ a, db, peseDb, expanded, isSelected, onToggle, onSelect, onRe
                     <SelectContent>{db.tps.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
                   </Select>
                   <span className="text-xs text-muted-foreground">Detectado: {a.pan.programaOrcamentario ?? "—"}</span>
+                </div>
+              )}
+
+              {a.pan.isTi && tiDb && (
+                <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Monitor className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                      Verificação TI{a.pan.tiCategory ? ` — ${a.pan.tiCategory}` : ""}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="text-sm text-muted-foreground">TP:</span>
+                    <Select value={tp} onValueChange={onTpChange}>
+                      <SelectTrigger className="w-48 h-8"><SelectValue placeholder="TP" /></SelectTrigger>
+                      <SelectContent>{tiDb.tps.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                    </Select>
+                    <span className="text-xs text-muted-foreground">Detectado: {a.pan.tp ?? "—"}</span>
+                  </div>
+                  {a.pan.descricaoObra && (
+                    <div className="text-xs text-muted-foreground">
+                      DESCR. OBRA detectada: <span className="text-foreground/70">{a.pan.descricaoObra}</span>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -847,7 +914,7 @@ function PanCard({ a, db, peseDb, expanded, isSelected, onToggle, onSelect, onRe
                           <tr key={y.year} className={`border-t border-border/40 transition-colors ${idx % 2 === 1 ? "bg-muted/20" : ""}`}>
                             <td className="px-4 py-2.5 font-medium">{y.year}</td>
                             <td className="px-4 py-2.5 text-right tabular-nums"><Num v={fmtBRL(y.requested)} tip={`Fluxo de caixa ${y.year} × CAPEX ${a.pan.percentualCapex ?? 100}%`} /></td>
-                            <td className="px-4 py-2.5 text-right tabular-nums"><Num v={fmtBRL(y.available)} tip={`Σ orçamento TP ${tp} · ${a.rows.length} empresa(s)\nbase: orcamento.xlsx`} /></td>
+                            <td className="px-4 py-2.5 text-right tabular-nums"><Num v={fmtBRL(y.available)} tip={`Σ orçamento TP ${tp} · ${a.rows.length} empresa(s)\nbase: ${a.pan.isTi ? "TI.xlsx" : "orcamento.xlsx"}`} /></td>
                             <td className={`px-4 py-2.5 text-right font-medium tabular-nums ${y.ok ? "text-status-ok" : "text-status-warn"}`}><Num v={`${y.diff >= 0 ? "+" : ""}${fmtBRL(y.diff)}`} tip={`Orçamento (${fmtBRL(y.available)}) − Pedido (${fmtBRL(y.requested)})`} /></td>
                             <td className="px-4 py-2.5 text-center"><span className={`inline-block h-2 w-2 rounded-full ${y.ok ? "bg-status-ok" : "bg-status-warn"}`} /></td>
                           </tr>
@@ -855,7 +922,7 @@ function PanCard({ a, db, peseDb, expanded, isSelected, onToggle, onSelect, onRe
                         <tr className="border-t-2 border-border bg-primary/5 font-semibold">
                           <td className="px-4 py-2.5">Total</td>
                           <td className="px-4 py-2.5 text-right tabular-nums"><Num v={fmtBRL(a.totalRequested)} tip={`Σ fluxo de caixa × CAPEX ${a.pan.percentualCapex ?? 100}%`} /></td>
-                          <td className="px-4 py-2.5 text-right tabular-nums"><Num v={fmtBRL(a.totalAvailable)} tip={`Σ orçamento TP ${tp} em todos os anos\nbase: orcamento.xlsx`} /></td>
+                          <td className="px-4 py-2.5 text-right tabular-nums"><Num v={fmtBRL(a.totalAvailable)} tip={`Σ orçamento TP ${tp} em todos os anos\nbase: ${a.pan.isTi ? "TI.xlsx" : "orcamento.xlsx"}`} /></td>
                           <td className={`px-4 py-2.5 text-right tabular-nums ${a.totalAvailable - a.totalRequested >= 0 ? "text-status-ok" : "text-status-warn"}`}><Num v={`${a.totalAvailable - a.totalRequested >= 0 ? "+" : ""}${fmtBRL(a.totalAvailable - a.totalRequested)}`} tip={`Orçamento (${fmtBRL(a.totalAvailable)}) − Pedido (${fmtBRL(a.totalRequested)})`} /></td>
                           <td />
                         </tr>
@@ -870,22 +937,53 @@ function PanCard({ a, db, peseDb, expanded, isSelected, onToggle, onSelect, onRe
               {!a.pan.isTurnKey && (
                 <div className="space-y-2">
                   {a.rows.map((r) => {
-                    const tone = !r.empresaCode ? "border-border bg-surface" : r.ok ? "border-status-ok/30 bg-status-ok/5" : "border-status-warn/30 bg-status-warn/5";
-                    const action = !r.empresaCode ? "Selecione a empresa correspondente na base" : r.ok ? `Liberar PAN. Sobra ${fmtBRL(r.diff)} no orçamento.` : `Falta ${fmtBRL(-r.diff)}. Recomenda-se remanejar saldo de outra empresa ou revisar fluxo de caixa.`;
+                    const needsPrograma = a.pan.isTi && r.empresaCode && !r.tiPrograma;
+                    const tone = !r.empresaCode ? "border-border bg-surface" : needsPrograma ? "border-blue-500/30 bg-blue-500/5" : r.ok ? "border-status-ok/30 bg-status-ok/5" : "border-status-warn/30 bg-status-warn/5";
+                    const action = !r.empresaCode
+                      ? "Selecione a empresa correspondente na base"
+                      : needsPrograma
+                        ? "Selecione a linha orçamentária para esta empresa"
+                        : r.ok
+                          ? `Liberar PAN. Sobra ${fmtBRL(r.diff)} no orçamento.`
+                          : `Falta ${fmtBRL(-r.diff)}. Recomenda-se remanejar saldo de outra empresa ou revisar fluxo de caixa.`;
+                    const empresaList = a.pan.isTi && tiDb ? tiDb.empresas : db.empresas;
                     return (
                       <div key={r.empresaPan} className={`rounded-lg border p-4 ${tone}`}>
                         <div className="flex items-start justify-between gap-4 flex-wrap">
                           <div className="flex-1 min-w-0">
                             <div className="font-medium">{r.empresaPan}</div>
                             <div className="text-xs text-muted-foreground mt-0.5">{action}</div>
+                            {a.pan.isTi && r.empresaCode && (
+                              <div className="mt-2 flex items-center gap-2 flex-wrap">
+                                <span className="text-xs text-muted-foreground">Linha orçamentária:</span>
+                                <Select
+                                  value={r.tiPrograma ?? ""}
+                                  onValueChange={(v) => onTiProgramaChange(r.empresaCode!, v)}
+                                >
+                                  <SelectTrigger className="h-7 text-xs w-64"><SelectValue placeholder="Selecione o programa" /></SelectTrigger>
+                                  <SelectContent>
+                                    {(r.tiProgramaOptions ?? []).map((opt) => (
+                                      <SelectItem key={opt.programaOrcamentario} value={opt.programaOrcamentario}>
+                                        <div className="flex flex-col gap-0.5">
+                                          <span>{opt.programaOrcamentario}</span>
+                                          {opt.descricaoProjeto && (
+                                            <span className="text-[10px] text-muted-foreground leading-tight">{opt.descricaoProjeto}</span>
+                                          )}
+                                        </div>
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
                           </div>
                           <div className="flex items-center gap-4">
                             <div className="text-right text-sm"><div className="text-xs text-muted-foreground">Pedido</div><div className="tabular-nums"><Num v={fmtBRL(r.requested)} tip={`Valor do rateio × CAPEX ${a.pan.percentualCapex ?? 100}%`} /></div></div>
-                            <div className="text-right text-sm"><div className="text-xs text-muted-foreground">Disponível</div><div className="tabular-nums"><Num v={fmtBRL(r.available)} tip={r.empresaCode ? `TP ${tp} — ${r.empresaCode}\nbase: orcamento.xlsx` : "Empresa não mapeada na base"} /></div></div>
+                            <div className="text-right text-sm"><div className="text-xs text-muted-foreground">Disponível</div><div className="tabular-nums"><Num v={fmtBRL(r.available)} tip={r.empresaCode ? (a.pan.isTi ? `TP ${tp} — ${r.empresaCode}\nlinha: ${r.tiPrograma ?? "—"}\nbase: TI.xlsx` : `TP ${tp} — ${r.empresaCode}\nbase: orcamento.xlsx`) : "Empresa não mapeada na base"} /></div></div>
                             <div className="text-right text-sm"><div className="text-xs text-muted-foreground">Diferença</div><div className={`tabular-nums ${r.ok ? "text-status-ok font-medium" : "text-status-warn font-medium"}`}><Num v={`${r.diff >= 0 ? "+" : ""}${fmtBRL(r.diff)}`} tip={`Disponível (${fmtBRL(r.available)}) − Pedido (${fmtBRL(r.requested)})`} /></div></div>
                             <Select value={r.empresaCode ?? ""} onValueChange={(v) => onEmpresaChange(r.empresaPan, v)}>
                               <SelectTrigger className="w-32 h-8"><SelectValue placeholder="Código" /></SelectTrigger>
-                              <SelectContent>{db.empresas.map((e) => <SelectItem key={e} value={e}>{e}</SelectItem>)}</SelectContent>
+                              <SelectContent>{empresaList.map((e) => <SelectItem key={e} value={e}>{e}</SelectItem>)}</SelectContent>
                             </Select>
                           </div>
                         </div>
@@ -906,7 +1004,12 @@ function PanCard({ a, db, peseDb, expanded, isSelected, onToggle, onSelect, onRe
                     <AlertTriangle className="h-4 w-4 text-status-warn mt-0.5 shrink-0" />
                     <div>
                       <div className="font-medium text-status-warn">Recomendação</div>
-                      <div className="text-foreground/80 mt-1">Maior gap em <b>{worst.empresaPan}</b>: faltam <b>{fmtBRL(-worst.diff)}</b>. Avalie remanejamento entre empresas (contrato permite), ajustar o fluxo de caixa anual ou solicitar suplementação no TP <b>{tp}</b>.</div>
+                      <div className="text-foreground/80 mt-1">
+                        {a.pan.isTi
+                          ? <>Maior gap em <b>{worst.empresaPan}</b>: faltam <b>{fmtBRL(-worst.diff)}</b>. Verifique a linha orçamentária selecionada ou solicite suplementação no TP <b>{tp}</b> (base TI.xlsx).</>
+                          : <>Maior gap em <b>{worst.empresaPan}</b>: faltam <b>{fmtBRL(-worst.diff)}</b>. Avalie remanejamento entre empresas (contrato permite), ajustar o fluxo de caixa anual ou solicitar suplementação no TP <b>{tp}</b>.</>
+                        }
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -917,7 +1020,12 @@ function PanCard({ a, db, peseDb, expanded, isSelected, onToggle, onSelect, onRe
                     <CheckCircle2 className="h-4 w-4 text-status-ok mt-0.5 shrink-0" />
                     <div>
                       <div className="font-medium text-status-ok">PAN aprovada pelo orçamento</div>
-                      <div className="text-foreground/80 mt-1">Todas as empresas têm saldo suficiente no TP <b>{tp}</b> para os anos do fluxo de caixa.</div>
+                      <div className="text-foreground/80 mt-1">
+                        {a.pan.isTi
+                          ? <>Todas as empresas têm saldo suficiente nas linhas orçamentárias do TP <b>{tp}</b> para os anos do fluxo de caixa (base TI.xlsx).</>
+                          : <>Todas as empresas têm saldo suficiente no TP <b>{tp}</b> para os anos do fluxo de caixa.</>
+                        }
+                      </div>
                     </div>
                   </div>
                 </div>
