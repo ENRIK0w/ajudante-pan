@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Download, Loader2 } from "lucide-react";
@@ -21,7 +21,7 @@ const SELECTABLE_COLS = EXPORT_COLUMNS.filter((c) => !SEPARATOR_COLS.has(c.index
 );
 
 // Translate schema + override into inline CSS for the WYSIWYG cell.
-function cellCss(colIndex: number, defaultFill: string, ov?: CellStyle): React.CSSProperties {
+function cellCss(defaultFill: string, ov?: CellStyle): React.CSSProperties {
   const css: React.CSSProperties = {};
   if (defaultFill) {
     css.background = `#${defaultFill}`;
@@ -32,7 +32,7 @@ function cellCss(colIndex: number, defaultFill: string, ov?: CellStyle): React.C
   if (ov?.color) css.color = `#${ov.color}`;
   if (ov?.bold !== undefined) css.fontWeight = ov.bold ? 700 : 400;
   if (ov?.italic) css.fontStyle = "italic";
-  if (ov?.fontSize) css.fontSize = ov.fontSize;
+  if (ov?.fontSize) css.fontSize = ov.fontSize * (4 / 3);
   if (ov?.align) css.textAlign = ov.align;
   return css;
 }
@@ -55,6 +55,19 @@ export function ExportPreview({
 
   const rowIds = useMemo(() => [HEADER_ROW, ...ordered.map((a) => a.pan.fileName)], [ordered]);
   const sel = useCellSelection(rowIds, SELECTABLE_COLS);
+
+  useEffect(() => {
+    sel.clear();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, rowIds]);
+
+  useEffect(() => {
+    const onUp = () => {
+      dragging.current = false;
+    };
+    window.addEventListener("mouseup", onUp);
+    return () => window.removeEventListener("mouseup", onUp);
+  }, []);
 
   const applyPatch = (patch: CellStyle) => {
     if (sel.selected.size === 0) return;
@@ -93,7 +106,7 @@ export function ExportPreview({
                       key={col.index}
                       onClick={() => sel.selectColumn(col.index)}
                       style={{
-                        ...cellCss(col.index, col.fill, ov),
+                        ...cellCss(col.fill, ov),
                         width: col.width * 7,
                         whiteSpace: "pre-line",
                       }}
@@ -133,7 +146,7 @@ export function ExportPreview({
                           onMouseUp={() => {
                             dragging.current = false;
                           }}
-                          style={{ ...cellCss(c, defaultFill, ov) }}
+                          style={{ ...cellCss(defaultFill, ov) }}
                           className={`border border-border/40 px-2 py-1 cursor-cell ${isSel ? "outline outline-2 outline-primary" : ""}`}
                         >
                           {typeof display === "number"
