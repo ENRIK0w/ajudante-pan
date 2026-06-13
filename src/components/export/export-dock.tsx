@@ -10,7 +10,7 @@ import type { AnalyzedPan } from "@/lib/analyze";
 
 function Chip({ a, onRemove }: { a: AnalyzedPan; onRemove: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: a.pan.fileName,
+    id: `chip:${a.pan.fileName}`,
   });
   const status = a.manualStatus ?? a.status;
   const dot =
@@ -101,7 +101,7 @@ export function ExportDock({
             <p className="text-sm text-muted-foreground py-1.5">Arraste PANs aqui para exportar</p>
           ) : (
             <SortableContext
-              items={ordered.map((a) => a.pan.fileName)}
+              items={ordered.map((a) => `chip:${a.pan.fileName}`)}
               strategy={horizontalListSortingStrategy}
             >
               <div className="flex items-center gap-2">

@@ -203,19 +203,24 @@ export default function Page() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const handleDragEnd = (e: DragEndEvent) => {
-    const activeId = String(e.active.id);
-    const overId = e.over ? String(e.over.id) : null;
-    if (!overId) return;
-    if (!tray.includes(activeId)) {
-      // A PAN card dragged into the dock — dropped on the container or on any chip.
-      if (overId === "export-dock" || tray.includes(overId)) {
-        setTray((prev) => (prev.includes(activeId) ? prev : [...prev, activeId]));
+    const active = String(e.active.id);
+    const over = e.over ? String(e.over.id) : null;
+    if (!over) return;
+    // Dragging a PAN card into the dock (dropped on the container or any chip).
+    if (active.startsWith("card:")) {
+      const fileName = active.slice(5);
+      if (over === "export-dock" || over.startsWith("chip:")) {
+        setTray((prev) => (prev.includes(fileName) ? prev : [...prev, fileName]));
       }
       return;
     }
-    // Reorder within the tray.
-    if (overId !== activeId && tray.includes(overId)) {
-      setTray((prev) => reorderTray(prev, prev.indexOf(activeId), prev.indexOf(overId)));
+    // Reordering a chip within the tray.
+    if (active.startsWith("chip:") && over.startsWith("chip:")) {
+      const a = active.slice(5);
+      const o = over.slice(5);
+      if (a !== o && tray.includes(a) && tray.includes(o)) {
+        setTray((prev) => reorderTray(prev, prev.indexOf(a), prev.indexOf(o)));
+      }
     }
   };
 
@@ -653,7 +658,7 @@ function PanCard({
   onStatusChange: (status: "aprovado" | "negado" | "warn" | null) => void;
   onTiProgramaChange: (empresaCode: string, programa: string) => void;
 }) {
-  const drag = useDraggable({ id: a.pan.fileName });
+  const drag = useDraggable({ id: `card:${a.pan.fileName}` });
   const effectiveStatus = a.manualStatus ?? a.status;
   const statusConfig = {
     ok: {
