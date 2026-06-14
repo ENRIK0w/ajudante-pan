@@ -72,7 +72,11 @@ export function ExportDock({
   return (
     <div
       ref={setNodeRef}
-      className={`fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/95 backdrop-blur-xl px-6 py-3 transition-colors ${isOver ? "bg-primary/10" : ""}`}
+      className={`fixed inset-x-0 bottom-0 z-40 border-t backdrop-blur-xl px-6 py-3 transition-all duration-300 ease-out will-change-transform ${
+        isOver
+          ? "border-t-2 border-primary bg-primary/10 -translate-y-1.5 shadow-[0_-14px_44px_-10px] shadow-primary/40"
+          : "border-border bg-surface/95 translate-y-0 shadow-none"
+      }`}
     >
       <div className="max-w-6xl mx-auto flex items-center gap-3">
         <div className="flex items-center gap-2 shrink-0">
@@ -98,7 +102,15 @@ export function ExportDock({
 
         <div className="flex-1 min-w-0 overflow-x-auto scrollbar-thin">
           {ordered.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-1.5">Arraste PANs aqui para exportar</p>
+            <p
+              className={`text-sm py-1.5 origin-left transition-all duration-300 ease-out ${
+                isOver
+                  ? "text-primary font-medium scale-110 translate-x-1.5"
+                  : "text-muted-foreground"
+              }`}
+            >
+              {isOver ? "Solte para adicionar ✦" : "Arraste PANs aqui para exportar"}
+            </p>
           ) : (
             <SortableContext
               items={ordered.map((a) => `chip:${a.pan.fileName}`)}

@@ -110,7 +110,7 @@ export function ExportPreview({
                         width: col.width * 7,
                         whiteSpace: "pre-line",
                       }}
-                      className={`border border-border/40 px-2 py-1 cursor-pointer ${isSel ? "outline outline-2 outline-primary" : ""}`}
+                      className={`border border-[#808080]/50 px-2 py-1 cursor-pointer ${isSel ? "outline outline-2 outline-primary" : ""}`}
                       title="Clique para selecionar a coluna inteira"
                     >
                       {col.header}
@@ -147,7 +147,7 @@ export function ExportPreview({
                             dragging.current = false;
                           }}
                           style={{ ...cellCss(defaultFill, ov) }}
-                          className={`border border-border/40 px-2 py-1 cursor-cell ${isSel ? "outline outline-2 outline-primary" : ""}`}
+                          className={`border border-[#808080]/50 px-2 py-1 cursor-cell ${isSel ? "outline outline-2 outline-primary" : ""}`}
                         >
                           {typeof display === "number"
                             ? col.kind === "percent"

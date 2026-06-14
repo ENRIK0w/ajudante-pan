@@ -53,6 +53,7 @@ import {
   xlsxDataStyle,
   statusFill,
   buildRow,
+  allBorders,
 } from "@/lib/export-schema";
 import { mergeStyle, cellKey, HEADER_ROW, type FormatMap } from "@/lib/cell-format";
 import { orderedApproved, allFileNames, reorderTray } from "@/lib/export-tray";
@@ -251,7 +252,7 @@ export default function Page() {
           if (SEPARATOR_COLS.has(c)) {
             ws[ref] = { v: "", t: "z", s: {} };
           } else if (c === STATUS_COL) {
-            const base = { fill: { patternType: "solid", fgColor: { rgb: statusFill(a) } } };
+            const base = { fill: { patternType: "solid", fgColor: { rgb: statusFill(a) } }, border: allBorders() };
             ws[ref] = { v: "", t: "s", s: mergeStyle(base, ov) };
           } else if (CURRENCY_COLS.has(c) || PERCENT_COLS.has(c)) {
             ws[ref] = { v: (val ?? 0) as number, t: "n", s: mergeStyle(xlsxDataStyle(col), ov) };

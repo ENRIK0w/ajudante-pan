@@ -47,6 +47,14 @@ if (EXPORT_COLUMNS[STATUS_COL]?.kind !== "status") {
   throw new Error("export-schema: STATUS_COL index is out of sync with EXPORT_COLUMNS");
 }
 
+// Thin gridline on all four sides. Fresh objects per call so xlsx-js-style
+// cannot mutate a shared reference across cells. Every header/data/status cell
+// gets this by default, giving the exported sheet a full "all borders" grid.
+export function allBorders(): object {
+  const side = () => ({ style: "thin", color: { rgb: "808080" } });
+  return { top: side(), bottom: side(), left: side(), right: side() };
+}
+
 // xlsx-js-style header style. A fresh object per call so xlsx's _addFill cannot
 // mutate a shared reference and corrupt sibling cells.
 export function xlsxHeaderStyle(fill: string): object {
@@ -55,6 +63,7 @@ export function xlsxHeaderStyle(fill: string): object {
     fill: { patternType: "solid", fgColor: { rgb: fill } },
     font: { color: { rgb: "FFFFFF" }, bold: true, sz: 11, name: "Calibri" },
     alignment: { horizontal: "center", vertical: "center", wrapText: true },
+    border: allBorders(),
   };
 }
 
@@ -62,9 +71,10 @@ export function xlsxHeaderStyle(fill: string): object {
 export function xlsxDataStyle(col: ExportColumn): object {
   // Fresh alignment object per call — default all data cells to centered.
   const alignment = { horizontal: "center", vertical: "center" };
-  if (col.kind === "currency") return { numFmt: "#,##0", alignment };
-  if (col.kind === "percent")  return { numFmt: "0%", alignment };
-  return { alignment };
+  const border = allBorders();
+  if (col.kind === "currency") return { numFmt: "#,##0", alignment, border };
+  if (col.kind === "percent")  return { numFmt: "0%", alignment, border };
+  return { alignment, border };
 }
 
 export function statusFill(a: AnalyzedPan): string {
