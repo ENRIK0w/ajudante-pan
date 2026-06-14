@@ -59,13 +59,15 @@ import { mergeStyle, cellKey, HEADER_ROW, type FormatMap } from "@/lib/cell-form
 import { orderedApproved, allFileNames, reorderTray } from "@/lib/export-tray";
 import {
   DndContext,
+  DragOverlay,
   PointerSensor,
   useSensor,
   useSensors,
   useDraggable,
   type DragEndEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
-import { ExportDock } from "@/components/export/export-dock";
+import { ExportDock, DragCardPreview } from "@/components/export/export-dock";
 import { ExportPreview } from "@/components/export/export-preview";
 import XLSX from "xlsx-js-style";
 
@@ -105,6 +107,7 @@ export default function Page() {
   const [statusOverrides, setStatusOverrides] = useState<Record<string, StatusOverride>>({});
   const [dragOver, setDragOver] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -203,7 +206,10 @@ export default function Page() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
+  const handleDragStart = (e: DragStartEvent) => setActiveDragId(String(e.active.id));
+
   const handleDragEnd = (e: DragEndEvent) => {
+    setActiveDragId(null);
     const active = String(e.active.id);
     const over = e.over ? String(e.over.id) : null;
     if (!over) return;
@@ -283,7 +289,12 @@ export default function Page() {
   };
 
   return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+    <DndContext
+      sensors={sensors}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragCancel={() => setActiveDragId(null)}
+    >
       <div className="min-h-screen bg-canvas">
         <header className="h-16 border-b border-border/60 bg-surface/80 backdrop-blur-xl sticky top-0 z-30 px-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -590,6 +601,13 @@ export default function Page() {
           await exportToExcel(orderedSelection, formatMap);
         }}
       />
+      <DragOverlay dropAnimation={{ duration: 200, easing: "cubic-bezier(0.18, 0.89, 0.32, 1.28)" }}>
+        {activeDragId ? (
+          <DragCardPreview
+            a={analyzed.find((x) => x.pan.fileName === activeDragId.split(":").slice(1).join(":"))}
+          />
+        ) : null}
+      </DragOverlay>
     </DndContext>
   );
 }
@@ -701,17 +719,23 @@ function PanCard({
     : "sem TP";
 
   return (
-    <Card className={`overflow-hidden transition-all ${inTray ? "ring-2 ring-primary/50" : ""}`}>
-      <div className="flex items-center gap-2 p-5 hover:bg-muted/30 transition-colors">
+    <Card
+      className={`overflow-hidden transition-all ${inTray ? "ring-2 ring-primary/50" : ""}`}
+      style={{ opacity: drag.isDragging ? 0.4 : undefined }}
+    >
+      <div
+        ref={drag.setNodeRef}
+        {...drag.listeners}
+        {...drag.attributes}
+        className="flex items-center gap-2 p-5 hover:bg-muted/30 transition-colors cursor-grab active:cursor-grabbing touch-none select-none"
+        title="Arraste para adicionar ao export"
+      >
         <button
-          ref={drag.setNodeRef}
-          {...drag.listeners}
-          {...drag.attributes}
           onClick={(e) => {
             e.stopPropagation();
             onToggleTray();
           }}
-          className="p-1 rounded hover:bg-muted transition-colors shrink-0 cursor-grab"
+          className="p-1 rounded hover:bg-muted transition-colors shrink-0 cursor-pointer"
           title={inTray ? "Remover do export" : "Adicionar ao export (ou arraste)"}
         >
           {inTray ? (

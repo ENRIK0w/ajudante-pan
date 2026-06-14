@@ -197,6 +197,17 @@
     100% { background-position: -200% 0; }
   }
 
+  /* Drag pop — the grabbed PAN springs out of the page and follows the cursor */
+  .animate-drag-pop {
+    animation: drag-pop 0.18s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+
+  @keyframes drag-pop {
+    0%   { transform: scale(0.82) rotate(-3deg); opacity: 0.5; }
+    60%  { transform: scale(1.1) rotate(1.5deg); }
+    100% { transform: scale(1.05) rotate(0deg); opacity: 1; }
+  }
+
   /* Hover lift effect */
   .hover-lift {
     transition: transform 0.2s ease, box-shadow 0.2s ease;

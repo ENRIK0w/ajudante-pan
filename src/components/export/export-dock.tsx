@@ -24,28 +24,47 @@ function Chip({ a, onRemove }: { a: AnalyzedPan; onRemove: () => void }) {
   return (
     <div
       ref={setNodeRef}
+      {...attributes}
+      {...listeners}
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
-        opacity: isDragging ? 0.5 : 1,
+        opacity: isDragging ? 0.4 : 1,
       }}
-      className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm shrink-0"
+      className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm shrink-0 cursor-grab active:cursor-grabbing touch-none select-none"
     >
-      <span
-        {...attributes}
-        {...listeners}
-        className="cursor-grab text-muted-foreground select-none"
-      >
-        ⠿
-      </span>
+      <span className="text-muted-foreground select-none">⠿</span>
       <span className={`h-2 w-2 rounded-full ${dot}`} />
       <span className="font-medium">PAN {a.pan.panNumber ?? "?"}</span>
       <button
+        onPointerDown={(e) => e.stopPropagation()}
         onClick={onRemove}
-        className="ml-1 rounded p-0.5 hover:bg-destructive/10 hover:text-destructive"
+        className="ml-1 rounded p-0.5 hover:bg-destructive/10 hover:text-destructive cursor-pointer"
       >
         <X className="h-3.5 w-3.5" />
       </button>
+    </div>
+  );
+}
+
+// Floating preview that follows the cursor inside a dnd-kit <DragOverlay>.
+// "Pops out" on grab via the drag-pop keyframe and lifts with a strong shadow.
+export function DragCardPreview({ a }: { a?: AnalyzedPan }) {
+  if (!a) return null;
+  const status = a.manualStatus ?? a.status;
+  const dot =
+    status === "ok" || status === "aprovado"
+      ? "bg-status-ok"
+      : status === "warn"
+        ? "bg-status-warn"
+        : status === "negado"
+          ? "bg-destructive"
+          : "bg-muted-foreground";
+  return (
+    <div className="animate-drag-pop cursor-grabbing flex items-center gap-2.5 rounded-xl border-2 border-primary bg-card/95 backdrop-blur-md px-4 py-2.5 shadow-2xl shadow-primary/30 ring-4 ring-primary/10">
+      <span className="cursor-grabbing text-muted-foreground select-none">⠿</span>
+      <span className={`h-2.5 w-2.5 rounded-full ${dot}`} />
+      <span className="font-semibold text-sm">PAN {a.pan.panNumber ?? "?"}</span>
     </div>
   );
 }
