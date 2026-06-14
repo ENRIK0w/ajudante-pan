@@ -243,7 +243,9 @@ export default function Page() {
         const ref = XLSX.utils.encode_cell({ r: 0, c: col.index });
         const base = xlsxHeaderStyle(col.fill);
         const s = mergeStyle(base, formatMap[cellKey(HEADER_ROW, col.index)]);
-        ws[ref] = { v: col.header, t: col.header === "" ? "z" : "s", s };
+        // Only true separators (no fill) are blank "z" cells; filled columns
+        // stay string cells so their navy fill renders even with empty text.
+        ws[ref] = { v: col.header, t: col.fill ? "s" : "z", s };
       });
 
       // Data rows
