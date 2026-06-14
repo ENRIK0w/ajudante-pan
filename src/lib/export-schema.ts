@@ -99,7 +99,9 @@ export function buildRow(a: AnalyzedPan): (string | number | null)[] {
   const panCapex2027_2030 = pan2027_2030 * capex;
   const panCapexTotal = panTotal * capex;
   const barBrr = a.pan.isTurnKey ? "PESE" : a.pan.isTi ? "TI" : "BRR";
-  const linhaOrc = a.pan.isTurnKey && a.pese?.peseCodeResolved ? a.pese.peseCodeResolved : (a.tpResolved ?? "—");
+  const linhaOrc = a.pan.isTurnKey
+    ? (a.pese?.peseCodeResolved ?? a.tpResolved ?? "—")
+    : (a.pan.programaOrcamentario ?? a.tpResolved ?? "—");
   let orc2026 = 0, orc2027_2030 = 0;
   if (a.pan.isTurnKey && a.pese) {
     orc2026 = a.pese.peseByYear.find((y) => y.year === "2026")?.available ?? 0;
