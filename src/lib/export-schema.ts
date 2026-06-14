@@ -88,7 +88,7 @@ export function statusFill(a: AnalyzedPan): string {
 // One data row of 22 cells. Index 20 is null (status drawn via fill); index 21
 // is observation text. Logic moved verbatim from the original exportToExcel loop.
 export function buildRow(a: AnalyzedPan): (string | number | null)[] {
-  const categoria = a.pan.isTurnKey ? "TK" : (a.rows[0]?.empresaCode?.startsWith("D") ? "BRR" : "Outros");
+  const categoria = a.pan.isTurnKey ? "BRR" : (a.rows[0]?.empresaCode?.startsWith("D") ? "BRR" : "Outros");
   const panNumber = a.pan.panNumber ?? "—";
   const nome = a.pan.titulo ?? a.pan.fileName;
   const pan2026 = a.pan.fluxoCaixa.find((f) => f.ano === 2026)?.valor ?? 0;
@@ -98,7 +98,7 @@ export function buildRow(a: AnalyzedPan): (string | number | null)[] {
   const panCapex2026 = pan2026 * capex;
   const panCapex2027_2030 = pan2027_2030 * capex;
   const panCapexTotal = panTotal * capex;
-  const barBrr = a.pan.isTurnKey ? "PESE" : a.pan.isTi ? "TI" : "BRR";
+  const barBrr = a.pan.isTurnKey ? "PESE" : (a.rows[0]?.empresaCode ?? "—");
   const linhaOrc = a.pan.isTurnKey && a.pese?.peseCodeResolved ? a.pese.peseCodeResolved : (a.tpResolved ?? "—");
   let orc2026 = 0, orc2027_2030 = 0;
   if (a.pan.isTurnKey && a.pese) {
