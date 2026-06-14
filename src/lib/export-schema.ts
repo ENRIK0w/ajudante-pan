@@ -98,7 +98,7 @@ export function buildRow(a: AnalyzedPan): (string | number | null)[] {
   const panCapex2026 = pan2026 * capex;
   const panCapex2027_2030 = pan2027_2030 * capex;
   const panCapexTotal = panTotal * capex;
-  const barBrr = a.pan.isTurnKey ? "PESE" : (a.rows[0]?.empresaCode ?? "—");
+  const barBrr = a.pan.isTurnKey ? "PESE" : a.pan.isTi ? "TI" : "BRR";
   const linhaOrc = a.pan.isTurnKey && a.pese?.peseCodeResolved ? a.pese.peseCodeResolved : (a.tpResolved ?? "—");
   let orc2026 = 0, orc2027_2030 = 0;
   if (a.pan.isTurnKey && a.pese) {
