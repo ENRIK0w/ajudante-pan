@@ -37,6 +37,7 @@ import {
   loadCnpjFromUrl,
   loadPeseFromUrl,
   loadTiFromUrl,
+  mergePeseDbsByYear,
   type BudgetDb,
   type CnpjEntry,
   type PeseDb,
@@ -73,6 +74,10 @@ import XLSX from "xlsx-js-style";
 
 const fmtBRL = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+
+const PESE_BASES_LABEL = "base pese.xlsx (até 2026) + Obras_PESE_2027-2031.xlsx (2027+)";
+const peseBaseForYear = (year: string) =>
+  Number(year) >= 2027 ? "Obras_PESE_2027-2031.xlsx" : "base pese.xlsx";
 
 function Num({ v, tip, className }: { v: string; tip: React.ReactNode; className?: string }) {
   return (
@@ -112,15 +117,16 @@ export default function Page() {
   useEffect(() => {
     (async () => {
       try {
-        const [b, c, p, t] = await Promise.all([
+        const [b, c, legacyPese, futurePese, t] = await Promise.all([
           loadBudgetFromUrl("/orcamento.xlsx"),
           loadCnpjFromUrl("/cnpj.xlsx"),
           loadPeseFromUrl("/base pese.xlsx"),
+          loadPeseFromUrl("/Obras_PESE_2027-2031.xlsx"),
           loadTiFromUrl("/TI.xlsx"),
         ]);
         setDb(b);
         setCnpj(c);
-        setPeseDb(p);
+        setPeseDb(mergePeseDbsByYear(legacyPese, futurePese));
         setTiDb(t);
       } catch (e) {
         setError("Falha ao carregar base: " + (e as Error).message);
@@ -806,7 +812,7 @@ function PanCard({
                   v={fmtBRL(a.totalRequested)}
                   tip={
                     a.pan.isTurnKey
-                      ? `Σ fluxo de caixa × CAPEX ${a.pan.percentualCapex ?? 100}%\nbase: base pese.xlsx`
+                      ? `Σ fluxo de caixa × CAPEX ${a.pan.percentualCapex ?? 100}%`
                       : `Σ rateio das empresas × CAPEX ${a.pan.percentualCapex ?? 100}%`
                   }
                 />
@@ -819,7 +825,7 @@ function PanCard({
                   v={fmtBRL(a.totalAvailable)}
                   tip={
                     a.pan.isTurnKey
-                      ? `Σ orçamento PESE × 1,2195 (fator fiscal)\ncódigo: ${a.pese?.peseCodeResolved ?? "—"}\nbase: base pese.xlsx`
+                      ? `Σ orçamento PESE × 1,2195 (fator fiscal)\ncódigo: ${a.pese?.peseCodeResolved ?? "—"}\nbases: ${PESE_BASES_LABEL}`
                       : `Σ orçamento TP ${a.tpResolved ?? "?"} por empresa\nbase: orcamento.xlsx`
                   }
                 />
@@ -995,7 +1001,7 @@ function PanCard({
                                     ) : (
                                       <Num
                                         v={fmtBRL(y.available)}
-                                        tip={`Orçamento PESE × 1,2195 (fator fiscal)\ncódigo: ${a.pese!.peseCodeResolved}\nbase: base pese.xlsx`}
+                                        tip={`Orçamento PESE × 1,2195 (fator fiscal)\ncódigo: ${a.pese!.peseCodeResolved}\nbase: ${peseBaseForYear(y.year)}`}
                                       />
                                     )}
                                   </td>
@@ -1026,7 +1032,7 @@ function PanCard({
                               <td className="px-4 py-2.5 text-right tabular-nums">
                                 <Num
                                   v={fmtBRL(a.pese.peseTotal.available)}
-                                  tip={`Σ orçamento PESE × 1,2195 (fator fiscal)\ncódigo: ${a.pese.peseCodeResolved}\nbase: base pese.xlsx`}
+                                  tip={`Σ orçamento PESE × 1,2195 (fator fiscal)\ncódigo: ${a.pese.peseCodeResolved}\nbases: ${PESE_BASES_LABEL}`}
                                 />
                               </td>
                               <td

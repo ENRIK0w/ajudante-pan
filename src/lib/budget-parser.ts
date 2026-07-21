@@ -277,6 +277,56 @@ export async function loadPeseFromUrl(url: string): Promise<PeseDb> {
   return parsePeseBuffer(buf);
 }
 
+export function mergePeseDbsByYear(
+  legacyDb: PeseDb,
+  futureDb: PeseDb,
+  cutoverYear = 2027,
+): PeseDb {
+  const rowsByCode = new Map<string, PeseRow>();
+
+  const addRows = (
+    db: PeseDb,
+    includeYear: (year: number) => boolean,
+    preferMetadata: boolean,
+  ) => {
+    for (const row of db.rows) {
+      const key = row.peseCode.toUpperCase().trim();
+      let merged = rowsByCode.get(key);
+
+      if (!merged) {
+        merged = { ...row, years: {}, total: 0 };
+        rowsByCode.set(key, merged);
+      } else if (preferMetadata) {
+        merged.empresa = row.empresa;
+        merged.tp = row.tp;
+        merged.peseCode = row.peseCode;
+      }
+
+      for (const [year, value] of Object.entries(row.years)) {
+        if (includeYear(Number(year))) {
+          merged.years[year] = (merged.years[year] ?? 0) + value;
+        }
+      }
+    }
+  };
+
+  addRows(legacyDb, (year) => year < cutoverYear, false);
+  addRows(futureDb, (year) => year >= cutoverYear, true);
+
+  const rows = Array.from(rowsByCode.values()).map((row) => ({
+    ...row,
+    total: Object.values(row.years).reduce((sum, value) => sum + value, 0),
+  }));
+
+  return {
+    rows,
+    empresas: Array.from(new Set(rows.map((row) => row.empresa).filter(Boolean))).sort(),
+    tps: Array.from(new Set(rows.map((row) => row.tp).filter(Boolean))).sort(),
+    peseCodes: rows.map((row) => row.peseCode).sort(),
+    years: Array.from(new Set(rows.flatMap((row) => Object.keys(row.years)))).sort(),
+  };
+}
+
 export function parsePeseBuffer(buf: ArrayBuffer): PeseDb {
   const wb = XLSX.read(buf, { type: "array" });
   const ws = wb.Sheets[wb.SheetNames[0]];
@@ -293,6 +343,12 @@ export function parsePeseBuffer(buf: ArrayBuffer): PeseDb {
   }
 
   const header = json[headerIdx].map((h: any) => String(h ?? "").trim());
+  const normalizedHeader = header.map(normalize);
+  const empresaIdx = normalizedHeader.findIndex((h) => h === "empresa");
+  const tpIdx = normalizedHeader.findIndex((h) => h === "tp");
+  const peseCodeIdx = normalizedHeader.findIndex(
+    (h) => h.includes("codigo") && (h.includes("obra") || h.includes("projeto")),
+  );
 
   // Find year columns (format: "2026 - CM", "2027 - CM", etc.)
   const yearCols: { idx: number; year: string }[] = [];
@@ -312,9 +368,9 @@ export function parsePeseBuffer(buf: ArrayBuffer): PeseDb {
     const r = json[i];
     if (!r || r.length === 0) continue;
 
-    const empresa = String(r[0] ?? "").trim();
-    const tp = String(r[1] ?? "").trim();
-    const peseCode = String(r[2] ?? "").trim();
+    const empresa = String(r[empresaIdx >= 0 ? empresaIdx : 0] ?? "").trim();
+    const tp = String(r[tpIdx >= 0 ? tpIdx : 1] ?? "").trim();
+    const peseCode = String(r[peseCodeIdx >= 0 ? peseCodeIdx : 2] ?? "").trim();
 
     // Skip invalid rows
     if (!empresa || !peseCode) continue;

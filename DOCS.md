@@ -37,7 +37,8 @@ src/
 public/
 ├── orcamento.xlsx          # Base de orçamento (empresa × TP × ano)
 ├── cnpj.xlsx               # Tabela de lookup empresa → código
-├── base pese.xlsx          # Orçamento Turn Key (PESE)
+├── base pese.xlsx          # Orçamento Turn Key (PESE) até 2026
+├── Obras_PESE_2027-2031.xlsx # Orçamento Turn Key (PESE) de 2027 em diante
 └── Resumo_PAN_2026.xlsx    # Exemplo de export
 ```
 
@@ -197,6 +198,7 @@ Pipeline de extração:
 loadBudgetFromUrl(url: string) → Promise<BudgetDb>
 loadCnpjFromUrl(url: string)   → Promise<CnpjEntry[]>
 loadPeseFromUrl(url: string)   → Promise<PeseDb>
+mergePeseDbsByYear(legacy, future, cutoverYear?) → PeseDb
 ```
 
 Buscam os arquivos Excel via `fetch`, passam o buffer para os parsers abaixo.
@@ -280,6 +282,8 @@ Retorna orçamento por ano para empresa+TP (usado nas tabelas anuais da `Analyze
 lookupPeseByYear(db, peseCode) → Record<string, number>
 ```
 Retorna orçamento PESE por ano, multiplicado por **`PESE_TAX_MULTIPLIER = 1.219512`** (multiplicador fiscal de 19,51%).
+
+A aplicação combina as duas bases PESE com corte em 2027: anos até 2026 vêm de `base pese.xlsx`; anos de 2027 em diante vêm de `Obras_PESE_2027-2031.xlsx`.
 
 ---
 
